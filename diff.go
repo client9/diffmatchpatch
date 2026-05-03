@@ -65,10 +65,7 @@ func runeSlice(s string, start, end int) string {
 	return string([]rune(s)[start:end])
 }
 
-// DiffCommonPrefix returns the number of runes common to the start of text1 and text2.
-func (dmp *DiffMatchPatch) DiffCommonPrefix(text1, text2 string) int {
-	r1 := []rune(text1)
-	r2 := []rune(text2)
+func diffCommonPrefixRunes(r1, r2 []rune) int {
 	n := min(len(r1), len(r2))
 	for i := range n {
 		if r1[i] != r2[i] {
@@ -78,10 +75,7 @@ func (dmp *DiffMatchPatch) DiffCommonPrefix(text1, text2 string) int {
 	return n
 }
 
-// DiffCommonSuffix returns the number of runes common to the end of text1 and text2.
-func (dmp *DiffMatchPatch) DiffCommonSuffix(text1, text2 string) int {
-	r1 := []rune(text1)
-	r2 := []rune(text2)
+func diffCommonSuffixRunes(r1, r2 []rune) int {
 	n1, n2 := len(r1), len(r2)
 	n := min(n1, n2)
 	for i := 1; i <= n; i++ {
@@ -90,6 +84,16 @@ func (dmp *DiffMatchPatch) DiffCommonSuffix(text1, text2 string) int {
 		}
 	}
 	return n
+}
+
+// DiffCommonPrefix returns the number of runes common to the start of text1 and text2.
+func (dmp *DiffMatchPatch) DiffCommonPrefix(text1, text2 string) int {
+	return diffCommonPrefixRunes([]rune(text1), []rune(text2))
+}
+
+// DiffCommonSuffix returns the number of runes common to the end of text1 and text2.
+func (dmp *DiffMatchPatch) DiffCommonSuffix(text1, text2 string) int {
+	return diffCommonSuffixRunes([]rune(text1), []rune(text2))
 }
 
 // diffCommonOverlap returns the length (runes) of the longest overlap
@@ -227,8 +231,8 @@ func (dmp *DiffMatchPatch) diffHalfMatchI(long, short []rune, i int) [][]rune {
 			break
 		}
 		j += idx
-		prefix := dmp.DiffCommonPrefix(string(long[i:]), string(short[j:]))
-		suffix := dmp.DiffCommonSuffix(string(long[:i]), string(short[:j]))
+		prefix := diffCommonPrefixRunes(long[i:], short[j:])
+		suffix := diffCommonSuffixRunes(long[:i], short[:j])
 		if len(bestCommon) < suffix+prefix {
 			bestCommon = make([]rune, suffix+prefix)
 			copy(bestCommon, short[j-suffix:j])
@@ -400,17 +404,22 @@ func (dmp *DiffMatchPatch) diffMain(text1, text2 string, checklines bool, deadli
 		return []Diff{{Equal, text1}}
 	}
 
-	pfxLen := dmp.DiffCommonPrefix(text1, text2)
-	prefix := runeSlice(text1, 0, pfxLen)
-	text1 = runeSlice(text1, pfxLen, runeLen(text1))
-	text2 = runeSlice(text2, pfxLen, runeLen(text2))
+	r1, r2 := []rune(text1), []rune(text2)
 
-	sfxLen := dmp.DiffCommonSuffix(text1, text2)
-	suffix := runeSlice(text1, runeLen(text1)-sfxLen, runeLen(text1))
-	text1 = runeSlice(text1, 0, runeLen(text1)-sfxLen)
-	text2 = runeSlice(text2, 0, runeLen(text2)-sfxLen)
+	pfxLen := diffCommonPrefixRunes(r1, r2)
+	prefix := string(r1[:pfxLen])
+	r1 = r1[pfxLen:]
+	r2 = r2[pfxLen:]
 
-	diffs := dmp.diffCompute(text1, text2, checklines, deadline)
+	sfxLen := diffCommonSuffixRunes(r1, r2)
+	var suffix string
+	if sfxLen > 0 {
+		suffix = string(r1[len(r1)-sfxLen:])
+		r1 = r1[:len(r1)-sfxLen]
+		r2 = r2[:len(r2)-sfxLen]
+	}
+
+	diffs := dmp.diffCompute(string(r1), string(r2), checklines, deadline)
 
 	if prefix != "" {
 		diffs = append([]Diff{{Equal, prefix}}, diffs...)
