@@ -55,7 +55,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 	binMax := patLen + textLen
 
 	var lastRd []int
-	for d := 0; d < patLen; d++ {
+	for d := range patLen {
 		binMin := 0
 		binMid := binMax
 		for binMin < binMid {

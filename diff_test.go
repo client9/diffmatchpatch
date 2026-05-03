@@ -223,7 +223,7 @@ func TestDiffRunesToLines(t *testing.T) {
 
 	t.Run("More than 65536", func(t *testing.T) {
 		var bigList strings.Builder
-		for i := 0; i < 66000; i++ {
+		for i := range 66000 {
 			bigList.WriteString(fmt.Sprintf("%d\n", i))
 		}
 		text := bigList.String()
@@ -484,13 +484,14 @@ func TestDiffDelta(t *testing.T) {
 	}
 
 	t.Run("160kb string", func(t *testing.T) {
-		a := "abcdefghij"
-		for i := 0; i < 14; i++ {
-			a += a
+		var a strings.Builder
+		a.WriteString("abcdefghij")
+		for range 14 {
+			a.WriteString(a.String())
 		}
-		diffs := makeDiffs(Insert, a)
+		diffs := makeDiffs(Insert, a.String())
 		delta := dmp.DiffToDelta(diffs)
-		if delta != "+"+a {
+		if delta != "+"+a.String() {
 			t.Errorf("DiffToDelta: unexpected delta length %d", len(delta))
 		}
 		got, err := dmp.DiffFromDelta("", delta)
@@ -624,14 +625,15 @@ func TestDiffMain(t *testing.T) {
 	t.Run("Timeout", func(t *testing.T) {
 		dmp := New()
 		dmp.DiffTimeout = 0.1
-		longA := "`Twas brillig, and the slithy toves\nDid gyre and gimble in the wabe:\nAll mimsy were the borogoves,\nAnd the mome raths outgrabe.\n"
+		var longA strings.Builder
+		longA.WriteString("`Twas brillig, and the slithy toves\nDid gyre and gimble in the wabe:\nAll mimsy were the borogoves,\nAnd the mome raths outgrabe.\n")
 		longB := "I am the very model of a modern major general,\nI've information vegetable, animal, and mineral,\nI know the kings of England, and I quote the fights historical,\nFrom Marathon to Waterloo, in order categorical.\n"
-		for i := 0; i < 10; i++ {
-			longA += longA
+		for range 10 {
+			longA.WriteString(longA.String())
 			longB += longB
 		}
 		start := time.Now()
-		dmp.DiffMain(longA, longB, true)
+		dmp.DiffMain(longA.String(), longB, true)
 		elapsed := time.Since(start)
 		timeout := time.Duration(dmp.DiffTimeout * float64(time.Second))
 		if elapsed < timeout {

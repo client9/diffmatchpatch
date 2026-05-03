@@ -3,6 +3,7 @@ package diffmatchpatch
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -197,13 +198,13 @@ func TestPatchMake(t *testing.T) {
 	})
 
 	t.Run("Long string with repeats", func(t *testing.T) {
-		text1 := ""
-		for x := 0; x < 100; x++ {
-			text1 += "abcdef"
+		var text1 strings.Builder
+		for range 100 {
+			text1.WriteString("abcdef")
 		}
-		text2 := text1 + "123"
+		text2 := text1.String() + "123"
 		want := "@@ -573,28 +573,31 @@\n cdefabcdefabcdefabcdefabcdef\n+123\n"
-		patches := dmp.PatchMake(text1, text2)
+		patches := dmp.PatchMake(text1.String(), text2)
 		if got := dmp.PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
@@ -302,11 +303,12 @@ func TestPatchAddPadding(t *testing.T) {
 
 func TestPatchApply(t *testing.T) {
 	formatResult := func(result string, applied []bool) string {
-		s := result
+		var s strings.Builder
+		s.WriteString(result)
 		for _, b := range applied {
-			s += fmt.Sprintf("\t%v", b)
+			s.WriteString(fmt.Sprintf("\t%v", b))
 		}
-		return s
+		return s.String()
 	}
 
 	t.Run("Null case", func(t *testing.T) {

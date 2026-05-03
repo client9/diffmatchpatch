@@ -39,7 +39,7 @@ func encodeURI(s string) string {
 			i++
 		} else {
 			_, size := utf8.DecodeRuneInString(s[i:])
-			for j := 0; j < size; j++ {
+			for j := range size {
 				fmt.Fprintf(&buf, "%%%02X", s[i+j])
 			}
 			i += size
@@ -69,7 +69,7 @@ func (dmp *DiffMatchPatch) DiffCommonPrefix(text1, text2 string) int {
 	r1 := []rune(text1)
 	r2 := []rune(text2)
 	n := min(len(r1), len(r2))
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if r1[i] != r2[i] {
 			return i
 		}
@@ -317,7 +317,7 @@ func (dmp *DiffMatchPatch) diffBisect(r1, r2 []rune, deadline time.Time) []Diff 
 	front := delta%2 != 0
 	k1start, k1end, k2start, k2end := 0, 0, 0, 0
 
-	for d := 0; d < maxD; d++ {
+	for d := range maxD {
 		if !deadline.IsZero() && time.Now().After(deadline) {
 			break
 		}
@@ -442,9 +442,9 @@ func (dmp *DiffMatchPatch) diffCompute(text1, text2 string, checklines bool, dea
 		op = Insert
 	}
 
-	if i := strings.Index(long, short); i != -1 {
+	if before, _, ok := strings.Cut(long, short); ok {
 		rlong := []rune(long)
-		ri := runeLen(long[:i])
+		ri := runeLen(before)
 		rsi := runeLen(short)
 		return []Diff{
 			{op, string(rlong[:ri])},
@@ -969,7 +969,7 @@ func (dmp *DiffMatchPatch) DiffFromDelta(text1, delta string) ([]Diff, error) {
 	var diffs []Diff
 	r1 := []rune(text1)
 	pointer := 0
-	for _, token := range strings.Split(delta, "\t") {
+	for token := range strings.SplitSeq(delta, "\t") {
 		if token == "" {
 			continue
 		}
