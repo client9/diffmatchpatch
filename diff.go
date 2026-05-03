@@ -14,22 +14,22 @@ import (
 
 // encodeURISafe marks byte values that do NOT need % encoding.
 // Matches JavaScript's encodeURI safe set.
-var encodeURISafe [256]bool
-
-func init() {
+var encodeURISafe = func() [256]bool {
+	var safe [256]bool
 	for c := 'A'; c <= 'Z'; c++ {
-		encodeURISafe[c] = true
+		safe[c] = true
 	}
 	for c := 'a'; c <= 'z'; c++ {
-		encodeURISafe[c] = true
+		safe[c] = true
 	}
 	for c := '0'; c <= '9'; c++ {
-		encodeURISafe[c] = true
+		safe[c] = true
 	}
 	for _, c := range "-_.!~*'();/?:@&=+$,# " {
-		encodeURISafe[c] = true
+		safe[c] = true
 	}
-}
+	return safe
+}()
 
 // encodeURI percent-encodes s, compatible with JavaScript's encodeURI.
 func encodeURI(s string) string {
