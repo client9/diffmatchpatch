@@ -261,11 +261,11 @@ func TestPatchSplitMax(t *testing.T) {
 func TestPatchAddPadding(t *testing.T) {
 	dmp := New()
 	cases := []struct {
-		name        string
-		text1       string
-		text2       string
-		wantBefore  string
-		wantAfter   string
+		name       string
+		text1      string
+		text2      string
+		wantBefore string
+		wantAfter  string
 	}{
 		{
 			"Both edges full",

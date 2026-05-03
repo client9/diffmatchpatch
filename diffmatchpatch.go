@@ -22,9 +22,9 @@ type Diff struct {
 
 // Patch represents a set of changes to apply to a text.
 type Patch struct {
-	Diffs             []Diff
-	Start1, Start2    int
-	Length1, Length2  int
+	Diffs            []Diff
+	Start1, Start2   int
+	Length1, Length2 int
 }
 
 // DiffMatchPatch holds the configuration for diff, match, and patch operations.

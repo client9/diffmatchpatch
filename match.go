@@ -83,7 +83,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 				rd[j] = ((rd[j+1] << 1) | 1) & charMatch
 			} else {
 				rd[j] = (((rd[j+1] << 1) | 1) & charMatch) |
-					(((lastRd[j+1]|lastRd[j])<<1)|1) | lastRd[j+1]
+					(((lastRd[j+1] | lastRd[j]) << 1) | 1) | lastRd[j+1]
 			}
 			if rd[j]&matchmask != 0 {
 				score := dmp.matchBitapScore(d, j-1, loc, pattern)
