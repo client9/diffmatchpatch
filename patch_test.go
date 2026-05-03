@@ -305,7 +305,7 @@ func TestPatchApply(t *testing.T) {
 		var s strings.Builder
 		s.WriteString(result)
 		for _, b := range applied {
-			s.WriteString(fmt.Sprintf("\t%v", b))
+			fmt.Fprintf(&s, "\t%v", b)
 		}
 		return s.String()
 	}

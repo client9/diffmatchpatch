@@ -245,7 +245,7 @@ func TestDiffRunesToLines(t *testing.T) {
 	t.Run("More than 65536", func(t *testing.T) {
 		var bigList strings.Builder
 		for i := range 66000 {
-			bigList.WriteString(fmt.Sprintf("%d\n", i))
+			fmt.Fprintf(&bigList, "%d\n", i)
 		}
 		text := bigList.String()
 		result := dmp.diffLinesToRunes(text, "")
