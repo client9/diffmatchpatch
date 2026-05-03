@@ -17,8 +17,11 @@ const (
 // Diff represents a single edit operation on a piece of text.
 type Diff struct {
 	Type Operation
-	Text string
+	Text []rune
 }
+
+// String returns the text of the diff as a string.
+func (d Diff) String() string { return string(d.Text) }
 
 // Patch represents a set of changes to apply to a text.
 type Patch struct {

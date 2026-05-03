@@ -3,8 +3,10 @@ package diffmatchpatch
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // String returns the GNU unified diff format for a Patch.
@@ -35,7 +37,7 @@ func (p Patch) String() string {
 		case Equal:
 			buf.WriteByte(' ')
 		}
-		buf.WriteString(encodeURI(d.Text))
+		buf.WriteString(encodeURI(string(d.Text)))
 		buf.WriteByte('\n')
 	}
 	return buf.String()
@@ -48,34 +50,45 @@ func (dmp *DiffMatchPatch) patchAddContext(patch *Patch, text string) {
 	}
 	rText := []rune(text)
 	textLen := len(rText)
-	pattern := string(rText[patch.Start2 : patch.Start2+patch.Length1])
+	pattern := rText[patch.Start2 : patch.Start2+patch.Length1]
 	padding := 0
 
-	for strings.Index(text, pattern) != strings.LastIndex(text, pattern) &&
-		(dmp.MatchMaxBits == 0 || runeLen(pattern) < dmp.MatchMaxBits-dmp.PatchMargin-dmp.PatchMargin) {
+	for runesCountAtLeast2(rText, pattern) &&
+		(dmp.MatchMaxBits == 0 || len(pattern) < dmp.MatchMaxBits-dmp.PatchMargin-dmp.PatchMargin) {
 		padding += dmp.PatchMargin
 		start := max(0, patch.Start2-padding)
 		end := min(textLen, patch.Start2+patch.Length1+padding)
-		pattern = string(rText[start:end])
+		pattern = rText[start:end]
 	}
 	padding += dmp.PatchMargin
 
 	prefixStart := max(0, patch.Start2-padding)
-	prefix := string(rText[prefixStart:patch.Start2])
-	if prefix != "" {
-		patch.Diffs = append([]Diff{{Equal, prefix}}, patch.Diffs...)
+	prefix := rText[prefixStart:patch.Start2]
+	if len(prefix) > 0 {
+		patch.Diffs = append([]Diff{{Equal, slices.Clone(prefix)}}, patch.Diffs...)
 	}
 
 	suffixEnd := min(textLen, patch.Start2+patch.Length1+padding)
-	suffix := string(rText[patch.Start2+patch.Length1 : suffixEnd])
-	if suffix != "" {
-		patch.Diffs = append(patch.Diffs, Diff{Equal, suffix})
+	suffix := rText[patch.Start2+patch.Length1 : suffixEnd]
+	if len(suffix) > 0 {
+		patch.Diffs = append(patch.Diffs, Diff{Equal, slices.Clone(suffix)})
 	}
 
-	patch.Start1 -= runeLen(prefix)
-	patch.Start2 -= runeLen(prefix)
-	patch.Length1 += runeLen(prefix) + runeLen(suffix)
-	patch.Length2 += runeLen(prefix) + runeLen(suffix)
+	prefixLen := len(prefix)
+	suffixLen := len(suffix)
+	patch.Start1 -= prefixLen
+	patch.Start2 -= prefixLen
+	patch.Length1 += prefixLen + suffixLen
+	patch.Length2 += prefixLen + suffixLen
+}
+
+// runesCountAtLeast2 reports whether pattern appears at least twice in text.
+func runesCountAtLeast2(text, pattern []rune) bool {
+	first := runesIndex(text, pattern)
+	if first == -1 {
+		return false
+	}
+	return runesIndex(text[first+1:], pattern) != -1
 }
 
 func patchDeepCopy(patches []Patch) []Patch {
@@ -127,16 +140,16 @@ func (dmp *DiffMatchPatch) PatchMakeFromTextAndDiffs(text1 string, diffs []Diff)
 		switch d.Type {
 		case Insert:
 			patch.Diffs = append(patch.Diffs, d)
-			patch.Length2 += runeLen(d.Text)
+			patch.Length2 += len(d.Text)
 			rPost := []rune(postpatchText)
-			postpatchText = string(rPost[:charCount2]) + d.Text + string(rPost[charCount2:])
+			postpatchText = string(rPost[:charCount2]) + string(d.Text) + string(rPost[charCount2:])
 		case Delete:
-			patch.Length1 += runeLen(d.Text)
+			patch.Length1 += len(d.Text)
 			patch.Diffs = append(patch.Diffs, d)
 			rPost := []rune(postpatchText)
-			postpatchText = string(rPost[:charCount2]) + string(rPost[charCount2+runeLen(d.Text):])
+			postpatchText = string(rPost[:charCount2]) + string(rPost[charCount2+len(d.Text):])
 		case Equal:
-			dLen := runeLen(d.Text)
+			dLen := len(d.Text)
 			if dLen <= 2*dmp.PatchMargin && len(patch.Diffs) != 0 && i != len(diffs)-1 {
 				patch.Diffs = append(patch.Diffs, d)
 				patch.Length1 += dLen
@@ -153,10 +166,10 @@ func (dmp *DiffMatchPatch) PatchMakeFromTextAndDiffs(text1 string, diffs []Diff)
 			}
 		}
 		if d.Type != Insert {
-			charCount1 += runeLen(d.Text)
+			charCount1 += len(d.Text)
 		}
 		if d.Type != Delete {
-			charCount2 += runeLen(d.Text)
+			charCount2 += len(d.Text)
 		}
 	}
 	if len(patch.Diffs) != 0 {
@@ -174,6 +187,7 @@ func (dmp *DiffMatchPatch) PatchAddPadding(patches []Patch) ([]Patch, string) {
 		nullPadding.WriteRune(rune(x))
 	}
 	pad := nullPadding.String()
+	padRunes := []rune(pad)
 
 	for i := range patches {
 		patches[i].Start1 += paddingLen
@@ -182,15 +196,14 @@ func (dmp *DiffMatchPatch) PatchAddPadding(patches []Patch) ([]Patch, string) {
 
 	first := &patches[0]
 	if len(first.Diffs) == 0 || first.Diffs[0].Type != Equal {
-		first.Diffs = append([]Diff{{Equal, pad}}, first.Diffs...)
+		first.Diffs = append([]Diff{{Equal, slices.Clone(padRunes)}}, first.Diffs...)
 		first.Start1 -= paddingLen
 		first.Start2 -= paddingLen
 		first.Length1 += paddingLen
 		first.Length2 += paddingLen
-	} else if paddingLen > runeLen(first.Diffs[0].Text) {
-		// pad is \x01\x02...\x{paddingLen}, all single-byte runes, so len==runeLen
-		extra := paddingLen - runeLen(first.Diffs[0].Text)
-		first.Diffs[0].Text = pad[len(first.Diffs[0].Text):] + first.Diffs[0].Text
+	} else if paddingLen > len(first.Diffs[0].Text) {
+		extra := paddingLen - len(first.Diffs[0].Text)
+		first.Diffs[0].Text = append(slices.Clone(padRunes[len(first.Diffs[0].Text):]), first.Diffs[0].Text...)
 		first.Start1 -= extra
 		first.Start2 -= extra
 		first.Length1 += extra
@@ -199,12 +212,12 @@ func (dmp *DiffMatchPatch) PatchAddPadding(patches []Patch) ([]Patch, string) {
 
 	last := &patches[len(patches)-1]
 	if len(last.Diffs) == 0 || last.Diffs[len(last.Diffs)-1].Type != Equal {
-		last.Diffs = append(last.Diffs, Diff{Equal, pad})
+		last.Diffs = append(last.Diffs, Diff{Equal, slices.Clone(padRunes)})
 		last.Length1 += paddingLen
 		last.Length2 += paddingLen
-	} else if paddingLen > runeLen(last.Diffs[len(last.Diffs)-1].Text) {
-		extra := paddingLen - runeLen(last.Diffs[len(last.Diffs)-1].Text)
-		last.Diffs[len(last.Diffs)-1].Text += pad[:extra]
+	} else if paddingLen > len(last.Diffs[len(last.Diffs)-1].Text) {
+		extra := paddingLen - len(last.Diffs[len(last.Diffs)-1].Text)
+		last.Diffs[len(last.Diffs)-1].Text = append(last.Diffs[len(last.Diffs)-1].Text, padRunes[:extra]...)
 		last.Length1 += extra
 		last.Length2 += extra
 	}
@@ -224,38 +237,38 @@ func (dmp *DiffMatchPatch) PatchSplitMax(patches []Patch) []Patch {
 		x--
 		start1 := bigpatch.Start1
 		start2 := bigpatch.Start2
-		precontext := ""
+		var precontext []rune
 
 		for len(bigpatch.Diffs) != 0 {
 			patch := Patch{}
 			empty := true
-			patch.Start1 = start1 - runeLen(precontext)
-			patch.Start2 = start2 - runeLen(precontext)
-			if precontext != "" {
-				patch.Length1 = runeLen(precontext)
-				patch.Length2 = runeLen(precontext)
-				patch.Diffs = append(patch.Diffs, Diff{Equal, precontext})
+			patch.Start1 = start1 - len(precontext)
+			patch.Start2 = start2 - len(precontext)
+			if len(precontext) > 0 {
+				patch.Length1 = len(precontext)
+				patch.Length2 = len(precontext)
+				patch.Diffs = append(patch.Diffs, Diff{Equal, slices.Clone(precontext)})
 			}
 
 			for len(bigpatch.Diffs) != 0 && patch.Length1 < patchSize-dmp.PatchMargin {
 				diffType := bigpatch.Diffs[0].Type
 				diffText := bigpatch.Diffs[0].Text
 				if diffType == Insert {
-					patch.Length2 += runeLen(diffText)
-					start2 += runeLen(diffText)
+					patch.Length2 += len(diffText)
+					start2 += len(diffText)
 					patch.Diffs = append(patch.Diffs, bigpatch.Diffs[0])
 					bigpatch.Diffs = bigpatch.Diffs[1:]
 					empty = false
 				} else if diffType == Delete && len(patch.Diffs) == 1 &&
-					patch.Diffs[0].Type == Equal && runeLen(diffText) > 2*patchSize {
-					patch.Length1 += runeLen(diffText)
-					start1 += runeLen(diffText)
+					patch.Diffs[0].Type == Equal && len(diffText) > 2*patchSize {
+					patch.Length1 += len(diffText)
+					start1 += len(diffText)
 					empty = false
 					patch.Diffs = append(patch.Diffs, Diff{diffType, diffText})
 					bigpatch.Diffs = bigpatch.Diffs[1:]
 				} else {
-					take := min(runeLen(diffText), patchSize-patch.Length1-dmp.PatchMargin)
-					diffText = runeSlice(diffText, 0, take)
+					take := min(len(diffText), patchSize-patch.Length1-dmp.PatchMargin)
+					diffText = diffText[:take]
 					patch.Length1 += take
 					start1 += take
 					if diffType == Equal {
@@ -264,31 +277,31 @@ func (dmp *DiffMatchPatch) PatchSplitMax(patches []Patch) []Patch {
 					} else {
 						empty = false
 					}
-					patch.Diffs = append(patch.Diffs, Diff{diffType, diffText})
-					if diffText == bigpatch.Diffs[0].Text {
+					patch.Diffs = append(patch.Diffs, Diff{diffType, slices.Clone(diffText)})
+					if len(diffText) == len(bigpatch.Diffs[0].Text) {
 						bigpatch.Diffs = bigpatch.Diffs[1:]
 					} else {
-						bigpatch.Diffs[0].Text = runeSlice(bigpatch.Diffs[0].Text, take, runeLen(bigpatch.Diffs[0].Text))
+						bigpatch.Diffs[0].Text = bigpatch.Diffs[0].Text[take:]
 					}
 				}
 			}
 
-			precontext = dmp.DiffText2(patch.Diffs)
-			if runeLen(precontext) > dmp.PatchMargin {
-				precontext = runeSlice(precontext, runeLen(precontext)-dmp.PatchMargin, runeLen(precontext))
+			precontext = []rune(dmp.DiffText2(patch.Diffs))
+			if len(precontext) > dmp.PatchMargin {
+				precontext = precontext[len(precontext)-dmp.PatchMargin:]
 			}
 
-			postcontext := dmp.DiffText1(bigpatch.Diffs)
-			if runeLen(postcontext) > dmp.PatchMargin {
-				postcontext = runeSlice(postcontext, 0, dmp.PatchMargin)
+			postcontext := []rune(dmp.DiffText1(bigpatch.Diffs))
+			if len(postcontext) > dmp.PatchMargin {
+				postcontext = postcontext[:dmp.PatchMargin]
 			}
-			if postcontext != "" {
-				patch.Length1 += runeLen(postcontext)
-				patch.Length2 += runeLen(postcontext)
+			if len(postcontext) > 0 {
+				patch.Length1 += len(postcontext)
+				patch.Length2 += len(postcontext)
 				if len(patch.Diffs) > 0 && patch.Diffs[len(patch.Diffs)-1].Type == Equal {
-					patch.Diffs[len(patch.Diffs)-1].Text += postcontext
+					patch.Diffs[len(patch.Diffs)-1].Text = append(patch.Diffs[len(patch.Diffs)-1].Text, postcontext...)
 				} else {
-					patch.Diffs = append(patch.Diffs, Diff{Equal, postcontext})
+					patch.Diffs = append(patch.Diffs, Diff{Equal, slices.Clone(postcontext)})
 				}
 			}
 
@@ -320,15 +333,17 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 	for _, aPatch := range patches {
 		expectedLoc := aPatch.Start2 + delta
 		text1 := dmp.DiffText1(aPatch.Diffs)
+		r1 := []rune(text1)
+		text1Len := len(r1)
 		var startLoc, endLoc int
 		endLoc = -1
 
-		if runeLen(text1) > dmp.MatchMaxBits {
-			startLoc = dmp.MatchMain(text, runeSlice(text1, 0, dmp.MatchMaxBits), expectedLoc)
+		if text1Len > dmp.MatchMaxBits {
+			startLoc = dmp.MatchMain(text, string(r1[:dmp.MatchMaxBits]), expectedLoc)
 			if startLoc != -1 {
 				endLoc = dmp.MatchMain(text,
-					runeSlice(text1, runeLen(text1)-dmp.MatchMaxBits, runeLen(text1)),
-					expectedLoc+runeLen(text1)-dmp.MatchMaxBits)
+					string(r1[text1Len-dmp.MatchMaxBits:]),
+					expectedLoc+text1Len-dmp.MatchMaxBits)
 				if endLoc == -1 || startLoc >= endLoc {
 					startLoc = -1
 				}
@@ -343,22 +358,23 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 		} else {
 			results[x] = true
 			delta = startLoc - expectedLoc
+			rText := []rune(text)
+			textLen := len(rText)
 			var text2 string
 			if endLoc == -1 {
-				end := min(startLoc+runeLen(text1), runeLen(text))
-				text2 = runeSlice(text, startLoc, end)
+				end := min(startLoc+text1Len, textLen)
+				text2 = string(rText[startLoc:end])
 			} else {
-				end := min(endLoc+dmp.MatchMaxBits, runeLen(text))
-				text2 = runeSlice(text, startLoc, end)
+				end := min(endLoc+dmp.MatchMaxBits, textLen)
+				text2 = string(rText[startLoc:end])
 			}
 			if text1 == text2 {
-				rText := []rune(text)
 				rT2 := []rune(dmp.DiffText2(aPatch.Diffs))
-				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+runeLen(text1):])
+				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+text1Len:])
 			} else {
 				diffs := dmp.DiffMain(text1, text2, false)
-				if runeLen(text1) > dmp.MatchMaxBits &&
-					float64(dmp.DiffLevenshtein(diffs))/float64(runeLen(text1)) > float64(dmp.PatchDeleteThreshold) {
+				if text1Len > dmp.MatchMaxBits &&
+					float64(dmp.DiffLevenshtein(diffs))/float64(text1Len) > float64(dmp.PatchDeleteThreshold) {
 					results[x] = false
 				} else {
 					diffs = dmp.DiffCleanupSemanticLossless(diffs)
@@ -366,16 +382,16 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 					for _, aDiff := range aPatch.Diffs {
 						if aDiff.Type != Equal {
 							index2 := dmp.DiffXIndex(diffs, index1)
-							rText := []rune(text)
+							rText = []rune(text)
 							if aDiff.Type == Insert {
-								text = string(rText[:startLoc+index2]) + aDiff.Text + string(rText[startLoc+index2:])
+								text = string(rText[:startLoc+index2]) + string(aDiff.Text) + string(rText[startLoc+index2:])
 							} else if aDiff.Type == Delete {
-								end := dmp.DiffXIndex(diffs, index1+runeLen(aDiff.Text))
+								end := dmp.DiffXIndex(diffs, index1+len(aDiff.Text))
 								text = string(rText[:startLoc+index2]) + string(rText[startLoc+end:])
 							}
 						}
 						if aDiff.Type != Delete {
-							index1 += runeLen(aDiff.Text)
+							index1 += len(aDiff.Text)
 						}
 					}
 				}
@@ -384,8 +400,9 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 		x++
 	}
 
-	padLen := runeLen(nullPadding)
-	text = runeSlice(text, padLen, runeLen(text)-padLen)
+	padLen := utf8.RuneCountInString(nullPadding)
+	rText := []rune(text)
+	text = string(rText[padLen : len(rText)-padLen])
 	return text, results
 }
 
@@ -451,11 +468,11 @@ func (dmp *DiffMatchPatch) PatchFromText(textline string) ([]Patch, error) {
 			}
 			switch sign {
 			case '-':
-				patch.Diffs = append(patch.Diffs, Diff{Delete, decoded})
+				patch.Diffs = append(patch.Diffs, Diff{Delete, []rune(decoded)})
 			case '+':
-				patch.Diffs = append(patch.Diffs, Diff{Insert, decoded})
+				patch.Diffs = append(patch.Diffs, Diff{Insert, []rune(decoded)})
 			case ' ':
-				patch.Diffs = append(patch.Diffs, Diff{Equal, decoded})
+				patch.Diffs = append(patch.Diffs, Diff{Equal, []rune(decoded)})
 			case '@':
 				goto nextPatch
 			default:

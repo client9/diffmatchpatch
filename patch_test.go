@@ -2,7 +2,6 @@ package diffmatchpatch
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -192,7 +191,7 @@ func TestPatchMake(t *testing.T) {
 	t.Run("Character decoding", func(t *testing.T) {
 		patches, _ := dmp.PatchFromText("@@ -1,21 +1,21 @@\n-%601234567890-=%5B%5D%5C;',./\n+~!@#$%25%5E&*()_+%7B%7D%7C:%22%3C%3E?\n")
 		want := makeDiffs(Delete, "`1234567890-=[]\\;',./", Insert, "~!@#$%^&*()_+{}|:\"<>?")
-		if !slices.Equal(patches[0].Diffs, want) {
+		if !diffsEqual(patches[0].Diffs, want) {
 			t.Errorf("want %v, got %v", want, patches[0].Diffs)
 		}
 	})

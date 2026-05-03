@@ -13,8 +13,8 @@ func (dmp *DiffMatchPatch) matchAlphabet(pattern string) map[rune]int {
 	return s
 }
 
-func (dmp *DiffMatchPatch) matchBitapScore(e, x, loc int, pattern string) float64 {
-	accuracy := float64(e) / float64(runeLen(pattern))
+func (dmp *DiffMatchPatch) matchBitapScore(e, x, loc, patLen int) float64 {
+	accuracy := float64(e) / float64(patLen)
 	proximity := x - loc
 	if proximity < 0 {
 		proximity = -proximity
@@ -40,11 +40,11 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 
 	bestLoc := runesIndexFrom(rText, rPattern, loc)
 	if bestLoc != -1 {
-		scoreThreshold = min(dmp.matchBitapScore(0, bestLoc, loc, pattern), scoreThreshold)
+		scoreThreshold = min(dmp.matchBitapScore(0, bestLoc, loc, patLen), scoreThreshold)
 		end := min(loc+patLen, textLen)
 		bl2 := runesLastIndexUpTo(rText, rPattern, end)
 		if bl2 != -1 {
-			scoreThreshold = min(dmp.matchBitapScore(0, bl2, loc, pattern), scoreThreshold)
+			scoreThreshold = min(dmp.matchBitapScore(0, bl2, loc, patLen), scoreThreshold)
 		}
 	}
 
@@ -57,7 +57,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 		binMin := 0
 		binMid := binMax
 		for binMin < binMid {
-			if dmp.matchBitapScore(d, loc+binMid, loc, pattern) <= scoreThreshold {
+			if dmp.matchBitapScore(d, loc+binMid, loc, patLen) <= scoreThreshold {
 				binMin = binMid
 			} else {
 				binMax = binMid
@@ -84,7 +84,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 					(((lastRd[j+1] | lastRd[j]) << 1) | 1) | lastRd[j+1]
 			}
 			if rd[j]&matchmask != 0 {
-				score := dmp.matchBitapScore(d, j-1, loc, pattern)
+				score := dmp.matchBitapScore(d, j-1, loc, patLen)
 				if score <= scoreThreshold {
 					scoreThreshold = score
 					bestLoc = j - 1
@@ -96,7 +96,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 				}
 			}
 		}
-		if dmp.matchBitapScore(d+1, loc, loc, pattern) > scoreThreshold {
+		if dmp.matchBitapScore(d+1, loc, loc, patLen) > scoreThreshold {
 			break
 		}
 		lastRd = rd
