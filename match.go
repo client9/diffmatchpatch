@@ -1,7 +1,5 @@
 package diffmatchpatch
 
-import "math"
-
 // matchAlphabet computes the alphabet bitmask for Bitap's pattern.
 func (dmp *DiffMatchPatch) matchAlphabet(pattern string) map[rune]int {
 	s := make(map[rune]int)
@@ -42,11 +40,11 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 
 	bestLoc := runesIndexFrom(rText, rPattern, loc)
 	if bestLoc != -1 {
-		scoreThreshold = math.Min(dmp.matchBitapScore(0, bestLoc, loc, pattern), scoreThreshold)
+		scoreThreshold = min(dmp.matchBitapScore(0, bestLoc, loc, pattern), scoreThreshold)
 		end := min(loc+patLen, textLen)
 		bl2 := runesLastIndexUpTo(rText, rPattern, end)
 		if bl2 != -1 {
-			scoreThreshold = math.Min(dmp.matchBitapScore(0, bl2, loc, pattern), scoreThreshold)
+			scoreThreshold = min(dmp.matchBitapScore(0, bl2, loc, pattern), scoreThreshold)
 		}
 	}
 
