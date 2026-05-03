@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -1007,15 +1008,9 @@ func (dmp *DiffMatchPatch) DiffFromDelta(text1, delta string) ([]Diff, error) {
 }
 
 func parsePositiveInt(s string) (int, error) {
-	if s == "" {
-		return 0, fmt.Errorf("empty string")
-	}
-	n := 0
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0, fmt.Errorf("not a number: %q", s)
-		}
-		n = n*10 + int(c-'0')
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("not a positive integer: %q", s)
 	}
 	return n, nil
 }
