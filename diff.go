@@ -802,7 +802,7 @@ func (dmp *DiffMatchPatch) DiffCleanupEfficiency(diffs []Diff) []Diff {
 
 	for pointer < len(diffs) {
 		if diffs[pointer].Type == Equal {
-			if len(diffs[pointer].Text) < dmp.DiffEditCost && (postIns || postDel) {
+			if runeLen(diffs[pointer].Text) < dmp.DiffEditCost && (postIns || postDel) {
 				equalities = append(equalities, pointer)
 				preIns, preDel = postIns, postDel
 				lastEquality = diffs[pointer].Text
