@@ -52,8 +52,9 @@ func encodeURI(s string) string {
 
 // decodeURI decodes a percent-encoded URI string.
 func decodeURI(s string) (string, error) {
-	s = strings.ReplaceAll(s, "+", "%2B")
-	return url.QueryUnescape(s)
+	//s = strings.ReplaceAll(s, "+", "%2B")
+	//return url.QueryUnescape(s)
+	return url.PathUnescape(s)
 }
 
 func diffCommonPrefixRunes(r1, r2 []rune) int {
