@@ -3,6 +3,7 @@
 A Go implementation of the [Diff Match Patch](https://github.com/google/diff-match-patch) algorithms by Neil Fraser — computing differences between texts, fuzzy matching, and applying patches.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/client9/diffmatchpatch.svg)](https://pkg.go.dev/github.com/client9/diffmatchpatch)
+[![Build Status](https://github.com/client9/diffmatchpatch/actions/workflows/go.yml/badge.svg)](https://github.com/client9/diffmatchpatch/actions)
 
 ## Install
 
@@ -128,4 +129,6 @@ patches, err := serial.PatchFromText(text)
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+This code is licensed under [MIT](LICENSE)
+
+The [original code](https://github.com/google/diff-match-patch) is licensed under [Apache 2.0](APACHE-LICENSE-2.0).
