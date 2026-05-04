@@ -31,6 +31,9 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# Generated
+/diff
+
 # AI Stuff
 .claude/
 CLAUDE.md

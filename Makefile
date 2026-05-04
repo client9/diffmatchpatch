@@ -38,5 +38,4 @@ lint: ## lint and verify repo is already formatted
 
 clean: ## remove any generated files
 	rm -f *.out 
-
-
+	rm -f ./diff
