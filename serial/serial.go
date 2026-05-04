@@ -37,6 +37,8 @@ var encodeURISafe = func() [256]bool {
 	for c := '0'; c <= '9'; c++ {
 		safe[c] = true
 	}
+	// Space is included here (rather than encoding as %20) to match the JS original,
+	// which does encodeURI() then replaces /%20/g back to ' '.
 	for _, c := range "-_.!~*'();/?:@&=+$,# " {
 		safe[c] = true
 	}
