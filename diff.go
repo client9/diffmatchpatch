@@ -817,32 +817,6 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// PrettyHtml converts a diff to a pretty HTML snippet.
-func PrettyHtml(diffs []Diff) string {
-	var buf strings.Builder
-	for _, d := range diffs {
-		text := strings.ReplaceAll(string(d.Text), "&", "&amp;")
-		text = strings.ReplaceAll(text, "<", "&lt;")
-		text = strings.ReplaceAll(text, ">", "&gt;")
-		text = strings.ReplaceAll(text, "\n", "&para;<br>")
-		switch d.Type {
-		case Insert:
-			buf.WriteString(`<ins style="background:#e6ffe6;">`)
-			buf.WriteString(text)
-			buf.WriteString("</ins>")
-		case Delete:
-			buf.WriteString(`<del style="background:#ffe6e6;">`)
-			buf.WriteString(text)
-			buf.WriteString("</del>")
-		case Equal:
-			buf.WriteString("<span>")
-			buf.WriteString(text)
-			buf.WriteString("</span>")
-		}
-	}
-	return buf.String()
-}
-
 // Source computes the source text from a diff (equalities and deletions).
 func Source(diffs []Diff) string {
 	var buf strings.Builder

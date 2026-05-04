@@ -443,14 +443,6 @@ func TestDiffCleanupEfficiency(t *testing.T) {
 	}
 }
 
-func TestDiffPrettyHtml(t *testing.T) {
-	diffs := makeDiffs(Equal, "a\n", Delete, "<B>b</B>", Insert, "c&d")
-	want := `<span>a&para;<br></span><del style="background:#ffe6e6;">&lt;B&gt;b&lt;/B&gt;</del><ins style="background:#e6ffe6;">c&amp;d</ins>`
-	if got := PrettyHtml(diffs); got != want {
-		t.Errorf("want: %s\ngot:  %s", want, got)
-	}
-}
-
 func TestDiffText(t *testing.T) {
 	diffs := makeDiffs(Equal, "jump", Delete, "s", Insert, "ed", Equal, " over ", Delete, "the", Insert, "a", Equal, " lazy")
 	if got := Source(diffs); got != "jumps over the lazy" {
