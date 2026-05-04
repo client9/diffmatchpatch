@@ -29,16 +29,6 @@ func diffCommonSuffixRunes(r1, r2 []rune) int {
 	return n
 }
 
-// CommonPrefix returns the number of runes common to the start of text1 and text2.
-func CommonPrefix(text1, text2 string) int {
-	return diffCommonPrefixRunes([]rune(text1), []rune(text2))
-}
-
-// CommonSuffix returns the number of runes common to the end of text1 and text2.
-func CommonSuffix(text1, text2 string) int {
-	return diffCommonSuffixRunes([]rune(text1), []rune(text2))
-}
-
 // diffCommonOverlap returns the length (runes) of the longest overlap
 // between the suffix of r1 and the prefix of r2.
 func diffCommonOverlap(r1, r2 []rune) int {

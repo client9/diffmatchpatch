@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+// commonPrefix returns the number of runes common to the start of text1 and text2.
+func commonPrefix(text1, text2 string) int {
+	return diffCommonPrefixRunes([]rune(text1), []rune(text2))
+}
+
+// commonSuffix returns the number of runes common to the end of text1 and text2.
+func commonSuffix(text1, text2 string) int {
+	return diffCommonSuffixRunes([]rune(text1), []rune(text2))
+}
+
 func makeDiffs(args ...any) []Diff {
 	if len(args)%2 != 0 {
 		panic("makeDiffs: odd number of arguments")
@@ -57,7 +67,7 @@ func TestDiffCommonPrefix(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := CommonPrefix(c.text1, c.text2); got != c.want {
+			if got := commonPrefix(c.text1, c.text2); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -76,7 +86,7 @@ func TestDiffCommonSuffix(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := CommonSuffix(c.text1, c.text2); got != c.want {
+			if got := commonSuffix(c.text1, c.text2); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
