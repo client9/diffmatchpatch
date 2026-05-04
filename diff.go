@@ -72,6 +72,11 @@ func diffCommonOverlap(r1, r2 []rune) int {
 	}
 }
 
+// runesIndex returns the index of the first occurrence of needle in haystack,
+// or -1 if not present. This is a naive O(n·m) subsequence search — a known
+// trade-off of the rune-based design. strings.Index uses Rabin-Karp for longer
+// needles but operates on bytes; slices.Index finds only single elements.
+// Future improvement: implement Rabin-Karp (or similar) directly on []rune.
 func runesIndex(haystack, needle []rune) int {
 	n := len(needle)
 	if n == 0 {
