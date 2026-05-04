@@ -134,7 +134,9 @@ func TestDiffHalfMatch(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
 			if c.hasDeadline {
-				ctx, _ = context.WithTimeout(context.Background(), time.Hour)
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(context.Background(), time.Hour)
+				defer cancel()
 			}
 			got := diffHalfMatch(ctx, []rune(c.text1), []rune(c.text2))
 			if !slices.EqualFunc(got, c.want, slices.Equal) {
