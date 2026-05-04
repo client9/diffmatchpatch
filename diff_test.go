@@ -1,6 +1,7 @@
 package diffmatchpatch
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -114,26 +115,28 @@ func TestDiffHalfMatch(t *testing.T) {
 	cases := []struct {
 		name         string
 		text1, text2 string
-		timeout      float64
+		hasDeadline  bool
 		want         [][]rune
 	}{
-		{"No match #1", "1234567890", "abcdef", 1, nil},
-		{"No match #2", "12345", "23", 1, nil},
-		{"Single match #1", "1234567890", "a345678z", 1, rr("12", "90", "a", "z", "345678")},
-		{"Single match #2", "a345678z", "1234567890", 1, rr("a", "z", "12", "90", "345678")},
-		{"Single match #3", "abc56789z", "1234567890", 1, rr("abc", "z", "1234", "0", "56789")},
-		{"Single match #4", "a23456xyz", "1234567890", 1, rr("a", "xyz", "1", "7890", "23456")},
-		{"Multiple matches #1", "121231234123451234123121", "a1234123451234z", 1, rr("12123", "123121", "a", "z", "1234123451234")},
-		{"Multiple matches #2", "x-=-=-=-=-=-=-=-=-=-=-=-=", "xx-=-=-=-=-=-=-=", 1, rr("", "-=-=-=-=-=", "x", "", "x-=-=-=-=-=-=-=")},
-		{"Multiple matches #3", "-=-=-=-=-=-=-=-=-=-=-=-=y", "-=-=-=-=-=-=-=yy", 1, rr("-=-=-=-=-=", "", "", "y", "-=-=-=-=-=-=-=y")},
-		{"Non-optimal halfmatch", "qHilloHelloHew", "xHelloHeHulloy", 1, rr("qHillo", "w", "x", "Hulloy", "HelloHe")},
-		{"Optimal no halfmatch", "qHilloHelloHew", "xHelloHeHulloy", 0, nil},
+		{"No match #1", "1234567890", "abcdef", true, nil},
+		{"No match #2", "12345", "23", true, nil},
+		{"Single match #1", "1234567890", "a345678z", true, rr("12", "90", "a", "z", "345678")},
+		{"Single match #2", "a345678z", "1234567890", true, rr("a", "z", "12", "90", "345678")},
+		{"Single match #3", "abc56789z", "1234567890", true, rr("abc", "z", "1234", "0", "56789")},
+		{"Single match #4", "a23456xyz", "1234567890", true, rr("a", "xyz", "1", "7890", "23456")},
+		{"Multiple matches #1", "121231234123451234123121", "a1234123451234z", true, rr("12123", "123121", "a", "z", "1234123451234")},
+		{"Multiple matches #2", "x-=-=-=-=-=-=-=-=-=-=-=-=", "xx-=-=-=-=-=-=-=", true, rr("", "-=-=-=-=-=", "x", "", "x-=-=-=-=-=-=-=")},
+		{"Multiple matches #3", "-=-=-=-=-=-=-=-=-=-=-=-=y", "-=-=-=-=-=-=-=yy", true, rr("-=-=-=-=-=", "", "", "y", "-=-=-=-=-=-=-=y")},
+		{"Non-optimal halfmatch", "qHilloHelloHew", "xHelloHeHulloy", true, rr("qHillo", "w", "x", "Hulloy", "HelloHe")},
+		{"Optimal no halfmatch", "qHilloHelloHew", "xHelloHeHulloy", false, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dmp := New()
-			dmp.DiffTimeout = c.timeout
-			got := dmp.diffHalfMatch([]rune(c.text1), []rune(c.text2))
+			ctx := context.Background()
+			if c.hasDeadline {
+				ctx, _ = context.WithTimeout(context.Background(), time.Hour)
+			}
+			got := diffHalfMatchFree(ctx, []rune(c.text1), []rune(c.text2))
 			if !slices.EqualFunc(got, c.want, slices.Equal) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -142,8 +145,6 @@ func TestDiffHalfMatch(t *testing.T) {
 }
 
 func TestDiffLinesToRunes(t *testing.T) {
-	dmp := New()
-
 	checkResult := func(t *testing.T, want, got linesCharsResult) {
 		t.Helper()
 		if !slices.Equal(got.chars1, want.chars1) || !slices.Equal(got.chars2, want.chars2) || !slices.Equal(got.lineArray, want.lineArray) {
@@ -157,7 +158,7 @@ func TestDiffLinesToRunes(t *testing.T) {
 			chars2:    []rune{2, 1, 2},
 			lineArray: []string{"", "alpha\n", "beta\n"},
 		}
-		checkResult(t, want, dmp.diffLinesToRunes("alpha\nbeta\nalpha\n", "beta\nalpha\nbeta\n"))
+		checkResult(t, want, diffLinesToRunes("alpha\nbeta\nalpha\n", "beta\nalpha\nbeta\n"))
 	})
 
 	t.Run("Empty string and blank lines", func(t *testing.T) {
@@ -166,7 +167,7 @@ func TestDiffLinesToRunes(t *testing.T) {
 			chars2:    []rune{1, 2, 3, 3},
 			lineArray: []string{"", "alpha\r\n", "beta\r\n", "\r\n"},
 		}
-		checkResult(t, want, dmp.diffLinesToRunes("", "alpha\r\nbeta\r\n\r\n\r\n"))
+		checkResult(t, want, diffLinesToRunes("", "alpha\r\nbeta\r\n\r\n\r\n"))
 	})
 
 	t.Run("No linebreaks", func(t *testing.T) {
@@ -175,7 +176,7 @@ func TestDiffLinesToRunes(t *testing.T) {
 			chars2:    []rune{2},
 			lineArray: []string{"", "a", "b"},
 		}
-		checkResult(t, want, dmp.diffLinesToRunes("a", "b"))
+		checkResult(t, want, diffLinesToRunes("a", "b"))
 	})
 
 	t.Run("More than 256", func(t *testing.T) {
@@ -191,13 +192,11 @@ func TestDiffLinesToRunes(t *testing.T) {
 			expectedChars[i-1] = rune(i)
 		}
 		want := linesCharsResult{chars1: expectedChars, chars2: []rune{}, lineArray: lineArray}
-		checkResult(t, want, dmp.diffLinesToRunes(lineList.String(), ""))
+		checkResult(t, want, diffLinesToRunes(lineList.String(), ""))
 	})
 }
 
 func TestDiffRunesToLines(t *testing.T) {
-	dmp := New()
-
 	t.Run("Equality", func(t *testing.T) {
 		d1 := Diff{Equal, []rune("a")}
 		d2 := Diff{Equal, []rune("a")}
@@ -213,7 +212,7 @@ func TestDiffRunesToLines(t *testing.T) {
 			{Insert, []rune{2, 1, 2}},
 		}
 		want := []Diff{{Equal, []rune("alpha\nbeta\nalpha\n")}, {Insert, []rune("beta\nalpha\nbeta\n")}}
-		got := dmp.diffRunesToLines(diffs, lineArray)
+		got := diffRunesToLinesFree(diffs, lineArray)
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -233,7 +232,7 @@ func TestDiffRunesToLines(t *testing.T) {
 		}
 		diffs := []Diff{{Delete, runeList}}
 		want := []Diff{{Delete, []rune(lineList.String())}}
-		got := dmp.diffRunesToLines(diffs, lineArray)
+		got := diffRunesToLinesFree(diffs, lineArray)
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -245,9 +244,9 @@ func TestDiffRunesToLines(t *testing.T) {
 			fmt.Fprintf(&bigList, "%d\n", i)
 		}
 		text := bigList.String()
-		result := dmp.diffLinesToRunes(text, "")
+		result := diffLinesToRunes(text, "")
 		diffs := []Diff{{Insert, result.chars1}}
-		diffs = dmp.diffRunesToLines(diffs, result.lineArray)
+		diffs = diffRunesToLinesFree(diffs, result.lineArray)
 		if string(diffs[0].Text) != text {
 			t.Errorf("round-trip failed: got length %d, want %d", len(diffs[0].Text), len([]rune(text)))
 		}
@@ -424,9 +423,7 @@ func TestDiffCleanupEfficiency(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dmp := New()
-			dmp.DiffEditCost = c.editCost
-			got := dmp.DiffCleanupEfficiency(c.input)
+			got := CleanupEfficiency(c.input, c.editCost)
 			if !diffsEqual(got, c.want) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -568,12 +565,11 @@ func TestDiffLevenshtein(t *testing.T) {
 }
 
 func TestDiffBisect(t *testing.T) {
-	dmp := New()
 	a, b := "cat", "map"
 
 	t.Run("Normal", func(t *testing.T) {
 		want := makeDiffs(Delete, "c", Insert, "m", Equal, "a", Delete, "t", Insert, "p")
-		got := dmp.diffBisect([]rune(a), []rune(b), time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC))
+		got := diffBisectFree(context.Background(), []rune(a), []rune(b))
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -581,7 +577,9 @@ func TestDiffBisect(t *testing.T) {
 
 	t.Run("Timeout", func(t *testing.T) {
 		want := makeDiffs(Delete, "cat", Insert, "map")
-		got := dmp.diffBisect([]rune(a), []rune(b), time.Unix(0, 1))
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		got := diffBisectFree(ctx, []rune(a), []rune(b))
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -594,37 +592,34 @@ func TestDiffMain(t *testing.T) {
 		text1      string
 		text2      string
 		checklines bool
-		timeout    float64
 		want       []Diff
 	}{
-		{"Null case", "", "", false, 0, makeDiffs()},
-		{"Equality", "abc", "abc", false, 0, makeDiffs(Equal, "abc")},
-		{"Simple insertion", "abc", "ab123c", false, 0, makeDiffs(Equal, "ab", Insert, "123", Equal, "c")},
-		{"Simple deletion", "a123bc", "abc", false, 0, makeDiffs(Equal, "a", Delete, "123", Equal, "bc")},
-		{"Two insertions", "abc", "a123b456c", false, 0,
+		{"Null case", "", "", false, makeDiffs()},
+		{"Equality", "abc", "abc", false, makeDiffs(Equal, "abc")},
+		{"Simple insertion", "abc", "ab123c", false, makeDiffs(Equal, "ab", Insert, "123", Equal, "c")},
+		{"Simple deletion", "a123bc", "abc", false, makeDiffs(Equal, "a", Delete, "123", Equal, "bc")},
+		{"Two insertions", "abc", "a123b456c", false,
 			makeDiffs(Equal, "a", Insert, "123", Equal, "b", Insert, "456", Equal, "c")},
-		{"Two deletions", "a123b456c", "abc", false, 0,
+		{"Two deletions", "a123b456c", "abc", false,
 			makeDiffs(Equal, "a", Delete, "123", Equal, "b", Delete, "456", Equal, "c")},
-		{"Simple case #1", "a", "b", false, 0,
+		{"Simple case #1", "a", "b", false,
 			makeDiffs(Delete, "a", Insert, "b")},
-		{"Simple case #2", "Apples are a fruit.", "Bananas are also fruit.", false, 0,
+		{"Simple case #2", "Apples are a fruit.", "Bananas are also fruit.", false,
 			makeDiffs(Delete, "Apple", Insert, "Banana", Equal, "s are a", Insert, "lso", Equal, " fruit.")},
-		{"Simple case #3", "ax\t", "ڀx\x00", false, 0,
+		{"Simple case #3", "ax\t", "ڀx\x00", false,
 			makeDiffs(Delete, "a", Insert, "ڀ", Equal, "x", Delete, "\t", Insert, "\x00")},
-		{"Overlap #1", "1ayb2", "abxab", false, 0,
+		{"Overlap #1", "1ayb2", "abxab", false,
 			makeDiffs(Delete, "1", Equal, "a", Delete, "y", Equal, "b", Delete, "2", Insert, "xab")},
-		{"Overlap #2", "abcy", "xaxcxabc", false, 0,
+		{"Overlap #2", "abcy", "xaxcxabc", false,
 			makeDiffs(Insert, "xaxcx", Equal, "abc", Delete, "y")},
-		{"Overlap #3", "ABCDa=bcd=efghijklmnopqrsEFGHIJKLMNOefg", "a-bcd-efghijklmnopqrs", false, 0,
+		{"Overlap #3", "ABCDa=bcd=efghijklmnopqrsEFGHIJKLMNOefg", "a-bcd-efghijklmnopqrs", false,
 			makeDiffs(Delete, "ABCD", Equal, "a", Delete, "=", Insert, "-", Equal, "bcd", Delete, "=", Insert, "-", Equal, "efghijklmnopqrs", Delete, "EFGHIJKLMNOefg")},
-		{"Large equality", "a [[Pennsylvania]] and [[New", " and [[Pennsylvania]]", false, 0,
+		{"Large equality", "a [[Pennsylvania]] and [[New", " and [[Pennsylvania]]", false,
 			makeDiffs(Insert, " ", Equal, "a", Insert, "nd", Equal, " [[Pennsylvania]]", Delete, " and [[New")},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dmp := New()
-			dmp.DiffTimeout = c.timeout
-			got := dmp.DiffMain(c.text1, c.text2, c.checklines)
+			got := diffMainRunesFree(context.Background(), []rune(c.text1), []rune(c.text2), c.checklines)
 			if !diffsEqual(got, c.want) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -632,8 +627,7 @@ func TestDiffMain(t *testing.T) {
 	}
 
 	t.Run("Timeout", func(t *testing.T) {
-		dmp := New()
-		dmp.DiffTimeout = 0.1
+		timeout := 100 * time.Millisecond
 		var longA strings.Builder
 		longA.WriteString("`Twas brillig, and the slithy toves\nDid gyre and gimble in the wabe:\nAll mimsy were the borogoves,\nAnd the mome raths outgrabe.\n")
 		longB := "I am the very model of a modern major general,\nI've information vegetable, animal, and mineral,\nI know the kings of England, and I quote the fights historical,\nFrom Marathon to Waterloo, in order categorical.\n"
@@ -641,10 +635,11 @@ func TestDiffMain(t *testing.T) {
 			longA.WriteString(longA.String())
 			longB += longB
 		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 		start := time.Now()
-		dmp.DiffMain(longA.String(), longB, true)
+		diffMainRunesFree(ctx, []rune(longA.String()), []rune(longB), true)
 		elapsed := time.Since(start)
-		timeout := time.Duration(dmp.DiffTimeout * float64(time.Second))
 		if elapsed < timeout {
 			t.Errorf("Timeout min: elapsed %v < timeout %v", elapsed, timeout)
 		}
@@ -654,28 +649,28 @@ func TestDiffMain(t *testing.T) {
 	})
 
 	t.Run("Simple line-mode", func(t *testing.T) {
-		dmp := New()
+		ctx := context.Background()
 		a := "1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n"
 		b := "abcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\n"
-		if !diffsEqual(dmp.DiffMain(a, b, false), dmp.DiffMain(a, b, true)) {
+		if !diffsEqual(diffMainRunesFree(ctx, []rune(a), []rune(b), false), diffMainRunesFree(ctx, []rune(a), []rune(b), true)) {
 			t.Error("line-mode and char-mode results differ")
 		}
 	})
 
 	t.Run("Single line-mode", func(t *testing.T) {
-		dmp := New()
+		ctx := context.Background()
 		a := "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
 		b := "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij"
-		if !diffsEqual(dmp.DiffMain(a, b, false), dmp.DiffMain(a, b, true)) {
+		if !diffsEqual(diffMainRunesFree(ctx, []rune(a), []rune(b), false), diffMainRunesFree(ctx, []rune(a), []rune(b), true)) {
 			t.Error("line-mode and char-mode results differ")
 		}
 	})
 
 	t.Run("Overlap line-mode", func(t *testing.T) {
-		dmp := New()
+		ctx := context.Background()
 		a := "1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n"
 		b := "abcdefghij\n1234567890\n1234567890\n1234567890\nabcdefghij\n1234567890\n1234567890\n1234567890\nabcdefghij\n1234567890\n1234567890\n1234567890\nabcdefghij\n"
-		if diffRebuildTexts(dmp.DiffMain(a, b, true)) != diffRebuildTexts(dmp.DiffMain(a, b, false)) {
+		if diffRebuildTexts(diffMainRunesFree(ctx, []rune(a), []rune(b), true)) != diffRebuildTexts(diffMainRunesFree(ctx, []rune(a), []rune(b), false)) {
 			t.Error("line-mode and text-mode results diverge")
 		}
 	})

@@ -1,6 +1,7 @@
 package diffmatchpatch
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"slices"
@@ -107,10 +108,10 @@ func patchDeepCopy(patches []Patch) []Patch {
 
 // PatchMake computes patches to turn text1 into text2.
 func (dmp *DiffMatchPatch) PatchMake(text1, text2 string) []Patch {
-	diffs := dmp.DiffMain(text1, text2, true)
+	diffs := diffMainRunesFree(context.Background(), []rune(text1), []rune(text2), true)
 	if len(diffs) > 2 {
 		diffs = CleanupSemantic(diffs)
-		diffs = dmp.DiffCleanupEfficiency(diffs)
+		diffs = CleanupEfficiency(diffs, dmp.DiffEditCost)
 	}
 	return dmp.PatchMakeFromTextAndDiffs(text1, diffs)
 }
@@ -372,7 +373,7 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 				rT2 := []rune(Dest(aPatch.Diffs))
 				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+text1Len:])
 			} else {
-				diffs := dmp.DiffMain(text1, text2, false)
+				diffs := diffMainRunesFree(context.Background(), []rune(text1), []rune(text2), false)
 				if text1Len > dmp.MatchMaxBits &&
 					float64(Levenshtein(diffs))/float64(text1Len) > float64(dmp.PatchDeleteThreshold) {
 					results[x] = false

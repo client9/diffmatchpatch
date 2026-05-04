@@ -3,7 +3,6 @@
 // Ported from Neil Fraser's original implementation at https://github.com/google/diff-match-patch.
 package diffmatchpatch
 
-import "time"
 
 // Operation defines the type of a diff.
 type Operation int
@@ -32,8 +31,6 @@ type Patch struct {
 
 // DiffMatchPatch holds the configuration for diff, match, and patch operations.
 type DiffMatchPatch struct {
-	// DiffTimeout is the number of seconds to map a diff before giving up (0 for infinity).
-	DiffTimeout float64
 	// DiffEditCost is the cost of an empty edit operation for efficiency cleanup.
 	DiffEditCost int
 	// MatchThreshold is the fuzzy match threshold (0=perfect, 1=very loose).
@@ -51,7 +48,6 @@ type DiffMatchPatch struct {
 // New returns a DiffMatchPatch with defaults matching the original Java implementation.
 func New() *DiffMatchPatch {
 	return &DiffMatchPatch{
-		DiffTimeout:          1.0,
 		DiffEditCost:         4,
 		MatchThreshold:       0.5,
 		MatchDistance:        1000,
@@ -61,14 +57,6 @@ func New() *DiffMatchPatch {
 	}
 }
 
-// diffDeadline converts DiffTimeout into an absolute time.Time deadline.
-// Returns time.Time{} (zero) when DiffTimeout <= 0, meaning no deadline.
-func (dmp *DiffMatchPatch) diffDeadline() time.Time {
-	if dmp.DiffTimeout <= 0 {
-		return time.Time{}
-	}
-	return time.Now().Add(time.Duration(dmp.DiffTimeout * float64(time.Second)))
-}
 
 // linesCharsResult holds the output of diffLinesToRunes.
 // Each element of chars1/chars2 is a rune whose integer value is an index into lineArray.

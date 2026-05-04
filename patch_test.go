@@ -1,6 +1,7 @@
 package diffmatchpatch
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -160,7 +161,7 @@ func TestPatchMake(t *testing.T) {
 		text1 := "The quick brown fox jumps over the lazy dog."
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
-		diffs := dmp.DiffMain(text1, text2, false)
+		diffs := DiffStrings(context.Background(), text1, text2)
 		patches := dmp.PatchMakeFromDiffs(diffs)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
@@ -171,7 +172,7 @@ func TestPatchMake(t *testing.T) {
 		text1 := "The quick brown fox jumps over the lazy dog."
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
-		diffs := dmp.DiffMain(text1, text2, false)
+		diffs := DiffStrings(context.Background(), text1, text2)
 		patches := dmp.PatchMakeFromTextAndDiffs(text1, diffs)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
