@@ -192,6 +192,8 @@ func diffHalfMatchI(long, short []rune, i int) [][]rune {
 			bestCommon = make([]rune, suffix+prefix)
 			copy(bestCommon, short[j-suffix:j])
 			copy(bestCommon[suffix:], short[j:j+prefix])
+			// Sub-slices of the inputs, not copies — callers must not
+			// mutate long/short while these results are live.
 			bestLongA = long[:i-suffix]
 			bestLongB = long[i+prefix:]
 			bestShortA = short[:j-suffix]
