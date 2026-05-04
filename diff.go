@@ -460,8 +460,12 @@ func DiffStrings(ctx context.Context, s1, s2 string) []Diff {
 	return diffMainRunes(ctx, []rune(s1), []rune(s2), false)
 }
 
-// DiffLines computes line-granularity differences between two strings, then
-// re-diffs each changed block at character level.
+// DiffLines diffs two strings using a two-pass algorithm. The first pass
+// operates at line granularity to quickly locate changed regions; the second
+// pass re-diffs each changed region at character level to produce precise
+// intra-line edits. The returned diffs therefore contain character-level
+// operations, not whole-line ones. To diff at line granularity only, encode
+// lines as runes with [DiffRunes].
 // Use context.WithTimeout to bound execution time; context.Background() for no limit.
 func DiffLines(ctx context.Context, s1, s2 string) []Diff {
 	return diffLineMode(ctx, s1, s2)
