@@ -1,7 +1,7 @@
 package diffmatchpatch
 
 // matchAlphabet computes the alphabet bitmask for Bitap's pattern.
-func (dmp *DiffMatchPatch) matchAlphabet(pattern string) map[rune]int {
+func matchAlphabet(pattern string) map[rune]int {
 	s := make(map[rune]int)
 	runes := []rune(pattern)
 	for _, c := range runes {
@@ -13,38 +13,47 @@ func (dmp *DiffMatchPatch) matchAlphabet(pattern string) map[rune]int {
 	return s
 }
 
-func (dmp *DiffMatchPatch) matchBitapScore(e, x, loc, patLen int) float64 {
+// Matcher performs fuzzy text matching with configurable accuracy.
+type Matcher struct {
+	// Threshold controls how loosely to match (0.0 = perfect, 1.0 = very loose).
+	Threshold float32
+	// Distance is how far from loc to search (0 = exact location only).
+	Distance int
+	// MaxBits is the pattern length limit for Bitap (typically 32 or 64).
+	MaxBits int
+}
+
+func (m Matcher) bitapScore(e, x, loc, patLen int) float64 {
 	accuracy := float64(e) / float64(patLen)
 	proximity := x - loc
 	if proximity < 0 {
 		proximity = -proximity
 	}
-	if dmp.MatchDistance == 0 {
+	if m.Distance == 0 {
 		if proximity == 0 {
 			return accuracy
 		}
 		return 1.0
 	}
-	return accuracy + float64(proximity)/float64(dmp.MatchDistance)
+	return accuracy + float64(proximity)/float64(m.Distance)
 }
 
-// matchBitap locates the best instance of pattern in text near loc using Bitap.
-func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
+func (m Matcher) bitap(text, pattern string, loc int) int {
 	rText := []rune(text)
 	rPattern := []rune(pattern)
 	textLen := len(rText)
 	patLen := len(rPattern)
 
-	s := dmp.matchAlphabet(pattern)
-	scoreThreshold := float64(dmp.MatchThreshold)
+	s := matchAlphabet(pattern)
+	scoreThreshold := float64(m.Threshold)
 
 	bestLoc := runesIndexFrom(rText, rPattern, loc)
 	if bestLoc != -1 {
-		scoreThreshold = min(dmp.matchBitapScore(0, bestLoc, loc, patLen), scoreThreshold)
+		scoreThreshold = min(m.bitapScore(0, bestLoc, loc, patLen), scoreThreshold)
 		end := min(loc+patLen, textLen)
 		bl2 := runesLastIndexUpTo(rText, rPattern, end)
 		if bl2 != -1 {
-			scoreThreshold = min(dmp.matchBitapScore(0, bl2, loc, patLen), scoreThreshold)
+			scoreThreshold = min(m.bitapScore(0, bl2, loc, patLen), scoreThreshold)
 		}
 	}
 
@@ -57,7 +66,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 		binMin := 0
 		binMid := binMax
 		for binMin < binMid {
-			if dmp.matchBitapScore(d, loc+binMid, loc, patLen) <= scoreThreshold {
+			if m.bitapScore(d, loc+binMid, loc, patLen) <= scoreThreshold {
 				binMin = binMid
 			} else {
 				binMax = binMid
@@ -84,7 +93,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 					(((lastRd[j+1] | lastRd[j]) << 1) | 1) | lastRd[j+1]
 			}
 			if rd[j]&matchmask != 0 {
-				score := dmp.matchBitapScore(d, j-1, loc, patLen)
+				score := m.bitapScore(d, j-1, loc, patLen)
 				if score <= scoreThreshold {
 					scoreThreshold = score
 					bestLoc = j - 1
@@ -96,7 +105,7 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 				}
 			}
 		}
-		if dmp.matchBitapScore(d+1, loc, loc, patLen) > scoreThreshold {
+		if m.bitapScore(d+1, loc, loc, patLen) > scoreThreshold {
 			break
 		}
 		lastRd = rd
@@ -104,8 +113,8 @@ func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
 	return bestLoc
 }
 
-// MatchMain locates the best instance of pattern in text near loc.
-func (dmp *DiffMatchPatch) MatchMain(text, pattern string, loc int) int {
+// Match locates the best instance of pattern in text near loc.
+func (m Matcher) Match(text, pattern string, loc int) int {
 	rText := []rune(text)
 	rPattern := []rune(pattern)
 	textLen := len(rText)
@@ -122,5 +131,32 @@ func (dmp *DiffMatchPatch) MatchMain(text, pattern string, loc int) int {
 	if loc+patLen <= textLen && string(rText[loc:loc+patLen]) == pattern {
 		return loc
 	}
-	return dmp.matchBitap(text, pattern, loc)
+	return m.bitap(text, pattern, loc)
+}
+
+// ---- DiffMatchPatch wrappers (delegate to Matcher) ----
+
+func (dmp *DiffMatchPatch) matcher() Matcher {
+	return Matcher{
+		Threshold: dmp.MatchThreshold,
+		Distance:  dmp.MatchDistance,
+		MaxBits:   dmp.MatchMaxBits,
+	}
+}
+
+func (dmp *DiffMatchPatch) matchAlphabet(pattern string) map[rune]int {
+	return matchAlphabet(pattern)
+}
+
+func (dmp *DiffMatchPatch) matchBitapScore(e, x, loc, patLen int) float64 {
+	return dmp.matcher().bitapScore(e, x, loc, patLen)
+}
+
+func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
+	return dmp.matcher().bitap(text, pattern, loc)
+}
+
+// MatchMain locates the best instance of pattern in text near loc.
+func (dmp *DiffMatchPatch) MatchMain(text, pattern string, loc int) int {
+	return dmp.matcher().Match(text, pattern, loc)
 }
