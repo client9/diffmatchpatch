@@ -137,7 +137,7 @@ func TestPrintUnified_noTrailingNewline(t *testing.T) {
 	got := unified("hello", "world", "a.txt", "b.txt", 3)
 	want := "--- a.txt\n" +
 		"+++ b.txt\n" +
-		"@@ -1,1 +1,1 @@\n" +
+		"@@ -1 +1 @@\n" +
 		"-hello\n" +
 		`\ No newline at end of file` + "\n" +
 		"+world\n" +
@@ -151,10 +151,10 @@ func TestPrintUnified_zeroContext(t *testing.T) {
 	got := unified("hello\nworld\nfoo\n", "hello\nearth\nfoo\nbar\n", "a.txt", "b.txt", 0)
 	want := "--- a.txt\n" +
 		"+++ b.txt\n" +
-		"@@ -2,1 +2,1 @@\n" +
+		"@@ -2 +2 @@\n" +
 		"-world\n" +
 		"+earth\n" +
-		"@@ -3,0 +4,1 @@\n" +
+		"@@ -3,0 +4 @@\n" +
 		"+bar\n"
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)

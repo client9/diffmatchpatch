@@ -218,7 +218,7 @@ func printUnified(w io.Writer, diffs []dmp.Diff, file1, file2 string, ctx int) {
 			}
 		}
 
-		fmt.Fprintf(w, "@@ -%d,%d +%d,%d @@\n", startOld, countOld, startNew, countNew)
+		fmt.Fprintf(w, "@@ -%s +%s @@\n", formatRange(startOld, countOld), formatRange(startNew, countNew))
 
 		for i := h.start; i <= h.end; i++ {
 			line := string(diffs[i].Text)
@@ -236,6 +236,13 @@ func printUnified(w io.Writer, diffs []dmp.Diff, file1, file2 string, ctx int) {
 			}
 		}
 	}
+}
+
+func formatRange(start, count int) string {
+	if count == 1 {
+		return fmt.Sprintf("%d", start)
+	}
+	return fmt.Sprintf("%d,%d", start, count)
 }
 
 // splitLines splits text into lines, each retaining its trailing newline.
