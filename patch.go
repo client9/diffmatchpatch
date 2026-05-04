@@ -3,6 +3,7 @@ package diffmatchpatch
 import (
 	"context"
 	"slices"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -28,6 +29,43 @@ type Patcher struct {
 	// Matcher is the fuzzy-match configuration used to locate patch positions
 	// during Apply.
 	Matcher Matcher
+}
+
+func diffText1(diffs []Diff) string {
+	var buf strings.Builder
+	for _, d := range diffs {
+		if d.Type != Insert {
+			buf.WriteString(string(d.Text))
+		}
+	}
+	return buf.String()
+}
+
+func diffText2(diffs []Diff) string {
+	var buf strings.Builder
+	for _, d := range diffs {
+		if d.Type != Delete {
+			buf.WriteString(string(d.Text))
+		}
+	}
+	return buf.String()
+}
+
+func levenshtein(diffs []Diff) int {
+	dist := 0
+	ins, del := 0, 0
+	for _, d := range diffs {
+		switch d.Type {
+		case Insert:
+			ins += len(d.Text)
+		case Delete:
+			del += len(d.Text)
+		case Equal:
+			dist += max(ins, del)
+			ins, del = 0, 0
+		}
+	}
+	return dist + max(ins, del)
 }
 
 // runesCountAtLeast2 reports whether pattern appears at least twice in text.
@@ -156,7 +194,7 @@ func (p Patcher) MakeFromTextAndDiffs(text1 string, diffs []Diff) []Patch {
 // the Delete and Equal segments. Prefer MakeFromTextAndDiffs when text1 is
 // already available.
 func (p Patcher) MakeFromDiffs(diffs []Diff) []Patch {
-	return p.MakeFromTextAndDiffs(Source(diffs), diffs)
+	return p.MakeFromTextAndDiffs(diffText1(diffs), diffs)
 }
 
 // Make computes patches to transform text1 into text2. It diffs the two texts,
@@ -275,12 +313,12 @@ func (p Patcher) splitMax(patches []Patch) []Patch {
 				}
 			}
 
-			precontext = []rune(Dest(patch.Diffs))
+			precontext = []rune(diffText2(patch.Diffs))
 			if len(precontext) > p.Margin {
 				precontext = precontext[len(precontext)-p.Margin:]
 			}
 
-			postcontext := []rune(Source(bigpatch.Diffs))
+			postcontext := []rune(diffText1(bigpatch.Diffs))
 			if len(postcontext) > p.Margin {
 				postcontext = postcontext[:p.Margin]
 			}
@@ -326,7 +364,7 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 
 	for _, aPatch := range patches {
 		expectedLoc := aPatch.Start2 + delta
-		text1 := Source(aPatch.Diffs)
+		text1 := diffText1(aPatch.Diffs)
 		r1 := []rune(text1)
 		text1Len := len(r1)
 		var startLoc, endLoc int
@@ -363,12 +401,12 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 				text2 = string(rText[startLoc:end])
 			}
 			if text1 == text2 {
-				rT2 := []rune(Dest(aPatch.Diffs))
+				rT2 := []rune(diffText2(aPatch.Diffs))
 				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+text1Len:])
 			} else {
 				diffs := diffMainRunes(ctx, []rune(text1), []rune(text2), false)
 				if text1Len > bitapMaxBits &&
-					float64(Levenshtein(diffs))/float64(text1Len) > float64(p.DeleteThreshold) {
+					float64(levenshtein(diffs))/float64(text1Len) > float64(p.DeleteThreshold) {
 					results[x] = false
 				} else {
 					diffs = CleanupSemanticLossless(diffs)

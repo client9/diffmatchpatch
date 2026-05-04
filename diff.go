@@ -817,47 +817,6 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// Source computes the source text from a diff (equalities and deletions).
-func Source(diffs []Diff) string {
-	var buf strings.Builder
-	for _, d := range diffs {
-		if d.Type != Insert {
-			buf.WriteString(string(d.Text))
-		}
-	}
-	return buf.String()
-}
-
-// Dest computes the destination text from a diff (equalities and insertions).
-func Dest(diffs []Diff) string {
-	var buf strings.Builder
-	for _, d := range diffs {
-		if d.Type != Delete {
-			buf.WriteString(string(d.Text))
-		}
-	}
-	return buf.String()
-}
-
-// Levenshtein returns the edit distance of diffs in runes
-// (number of inserted plus deleted runes, not counting equalities).
-func Levenshtein(diffs []Diff) int {
-	levenshtein := 0
-	ins, del := 0, 0
-	for _, d := range diffs {
-		switch d.Type {
-		case Insert:
-			ins += len(d.Text)
-		case Delete:
-			del += len(d.Text)
-		case Equal:
-			levenshtein += max(ins, del)
-			ins, del = 0, 0
-		}
-	}
-	return levenshtein + max(ins, del)
-}
-
 // TranslateIndex maps a rune index in text1 to the corresponding rune index in
 // text2, accounting for insertions and deletions described by diffs.
 func TranslateIndex(diffs []Diff, loc int) int {

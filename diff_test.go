@@ -445,11 +445,11 @@ func TestDiffCleanupEfficiency(t *testing.T) {
 
 func TestDiffText(t *testing.T) {
 	diffs := makeDiffs(Equal, "jump", Delete, "s", Insert, "ed", Equal, " over ", Delete, "the", Insert, "a", Equal, " lazy")
-	if got := Source(diffs); got != "jumps over the lazy" {
-		t.Errorf("Source: want %q, got %q", "jumps over the lazy", got)
+	if got := diffText1(diffs); got != "jumps over the lazy" {
+		t.Errorf("diffText1: want %q, got %q", "jumps over the lazy", got)
 	}
-	if got := Dest(diffs); got != "jumped over a lazy" {
-		t.Errorf("Dest: want %q, got %q", "jumped over a lazy", got)
+	if got := diffText2(diffs); got != "jumped over a lazy" {
+		t.Errorf("diffText2: want %q, got %q", "jumped over a lazy", got)
 	}
 }
 
@@ -466,25 +466,6 @@ func TestDiffXIndex(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if got := TranslateIndex(c.diffs, c.loc); got != c.want {
-				t.Errorf("want %d, got %d", c.want, got)
-			}
-		})
-	}
-}
-
-func TestDiffLevenshtein(t *testing.T) {
-	cases := []struct {
-		name  string
-		diffs []Diff
-		want  int
-	}{
-		{"Trailing equality", makeDiffs(Delete, "abc", Insert, "1234", Equal, "xyz"), 4},
-		{"Leading equality", makeDiffs(Equal, "xyz", Delete, "abc", Insert, "1234"), 4},
-		{"Middle equality", makeDiffs(Delete, "abc", Equal, "xyz", Insert, "1234"), 7},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := Levenshtein(c.diffs); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})

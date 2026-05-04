@@ -479,3 +479,22 @@ func TestPatchApply(t *testing.T) {
 		}
 	})
 }
+
+func TestLevenshtein(t *testing.T) {
+	cases := []struct {
+		name  string
+		diffs []Diff
+		want  int
+	}{
+		{"Trailing equality", makeDiffs(Delete, "abc", Insert, "1234", Equal, "xyz"), 4},
+		{"Leading equality", makeDiffs(Equal, "xyz", Delete, "abc", Insert, "1234"), 4},
+		{"Middle equality", makeDiffs(Delete, "abc", Equal, "xyz", Insert, "1234"), 7},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := levenshtein(c.diffs); got != c.want {
+				t.Errorf("want %d, got %d", c.want, got)
+			}
+		})
+	}
+}
