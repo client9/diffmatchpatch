@@ -90,9 +90,9 @@ p := diffmatchpatch.Patcher{
 // Create patches
 patches := p.Make(context.Background(), original, revised)
 
-// Serialize / deserialize
-text := diffmatchpatch.PatchToText(patches)
-patches, err := diffmatchpatch.PatchFromText(text)
+// Serialize / deserialize (serial subpackage — see Serialization section)
+text := serial.PatchToText(patches)
+patches, err := serial.PatchFromText(text)
 
 // Apply
 result, applied := p.Apply(context.Background(), patches, target)
