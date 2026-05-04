@@ -7,6 +7,15 @@ import (
 	"testing"
 )
 
+func newPatcher() Patcher {
+	return Patcher{
+		DeleteThreshold: 0.5,
+		Margin:          4,
+		EditCost:        4,
+		Matcher:         Matcher{Threshold: 0.5, Distance: 1000, MaxBits: 32},
+	}
+}
+
 func TestPatchObj(t *testing.T) {
 	p := Patch{
 		Diffs:   makeDiffs(Equal, "jump", Delete, "s", Insert, "ed", Equal, " over ", Delete, "the", Insert, "a", Equal, "\nlaz"),
@@ -82,8 +91,7 @@ func TestPatchToText(t *testing.T) {
 }
 
 func TestPatchAddContext(t *testing.T) {
-	dmp := New()
-	dmp.PatchMargin = 4
+	pt := Patcher{Margin: 4, Matcher: Matcher{MaxBits: 32}}
 	cases := []struct {
 		name       string
 		patchText  string
@@ -119,7 +127,7 @@ func TestPatchAddContext(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			patches, _ := PatchFromText(c.patchText)
 			p := patches[0]
-			dmp.patchAddContext(&p, c.sourceText)
+			pt.addContext(&p, c.sourceText)
 			if got := p.String(); got != c.want {
 				t.Errorf("want: %q\ngot:  %q", c.want, got)
 			}
@@ -128,10 +136,11 @@ func TestPatchAddContext(t *testing.T) {
 }
 
 func TestPatchMake(t *testing.T) {
-	dmp := New()
+	p := newPatcher()
+	ctx := context.Background()
 
 	t.Run("Null case", func(t *testing.T) {
-		patches := dmp.PatchMake("", "")
+		patches := p.Make(ctx, "", "")
 		if got := PatchToText(patches); got != "" {
 			t.Errorf("want empty, got %q", got)
 		}
@@ -141,7 +150,7 @@ func TestPatchMake(t *testing.T) {
 		text1 := "The quick brown fox jumps over the lazy dog."
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,8 +1,7 @@\n Th\n-at\n+e\n  qui\n@@ -21,17 +21,18 @@\n jump\n-ed\n+s\n  over \n-a\n+the\n  laz\n"
-		patches := dmp.PatchMake(text2, text1)
+		patches := p.Make(ctx, text2, text1)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
@@ -151,7 +160,7 @@ func TestPatchMake(t *testing.T) {
 		text1 := "The quick brown fox jumps over the lazy dog."
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
-		patches := dmp.PatchMake(text1, text2)
+		patches := p.Make(ctx, text1, text2)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
@@ -161,8 +170,8 @@ func TestPatchMake(t *testing.T) {
 		text1 := "The quick brown fox jumps over the lazy dog."
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
-		diffs := DiffStrings(context.Background(), text1, text2)
-		patches := dmp.PatchMakeFromDiffs(diffs)
+		diffs := DiffStrings(ctx, text1, text2)
+		patches := p.MakeFromDiffs(diffs)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
@@ -172,15 +181,15 @@ func TestPatchMake(t *testing.T) {
 		text1 := "The quick brown fox jumps over the lazy dog."
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
-		diffs := DiffStrings(context.Background(), text1, text2)
-		patches := dmp.PatchMakeFromTextAndDiffs(text1, diffs)
+		diffs := DiffStrings(ctx, text1, text2)
+		patches := p.MakeFromTextAndDiffs(text1, diffs)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
 
 	t.Run("Character encoding", func(t *testing.T) {
-		patches := dmp.PatchMake("`1234567890-=[]\\;',./", "~!@#$%^&*()_+{}|:\"<>?")
+		patches := p.Make(ctx, "`1234567890-=[]\\;',./", "~!@#$%^&*()_+{}|:\"<>?")
 		want := "@@ -1,21 +1,21 @@\n-%601234567890-=%5B%5D%5C;',./\n+~!@#$%25%5E&*()_+%7B%7D%7C:%22%3C%3E?\n"
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
@@ -202,7 +211,7 @@ func TestPatchMake(t *testing.T) {
 		}
 		text2 := text1.String() + "123"
 		want := "@@ -573,28 +573,31 @@\n cdefabcdefabcdefabcdefabcdef\n+123\n"
-		patches := dmp.PatchMake(text1.String(), text2)
+		patches := p.Make(ctx, text1.String(), text2)
 		if got := PatchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
@@ -210,12 +219,13 @@ func TestPatchMake(t *testing.T) {
 }
 
 func TestPatchSplitMax(t *testing.T) {
-	dmp := New()
+	p := newPatcher()
+	ctx := context.Background()
 	cases := []struct {
 		name  string
 		text1 string
 		text2 string
-		want  string // empty string means result must equal pre-split PatchToText
+		want  string
 	}{
 		{
 			"Large diff",
@@ -244,12 +254,12 @@ func TestPatchSplitMax(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			patches := dmp.PatchMake(c.text1, c.text2)
+			patches := p.Make(ctx, c.text1, c.text2)
 			want := c.want
 			if want == "" {
 				want = PatchToText(patches)
 			}
-			patches = dmp.PatchSplitMax(patches)
+			patches = p.splitMax(patches)
 			if got := PatchToText(patches); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
 			}
@@ -258,7 +268,8 @@ func TestPatchSplitMax(t *testing.T) {
 }
 
 func TestPatchAddPadding(t *testing.T) {
-	dmp := New()
+	p := newPatcher()
+	ctx := context.Background()
 	cases := []struct {
 		name       string
 		text1      string
@@ -287,11 +298,11 @@ func TestPatchAddPadding(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			patches := dmp.PatchMake(c.text1, c.text2)
+			patches := p.Make(ctx, c.text1, c.text2)
 			if got := PatchToText(patches); got != c.wantBefore {
 				t.Errorf("before: want: %q\ngot:  %q", c.wantBefore, got)
 			}
-			patches, _ = dmp.PatchAddPadding(patches)
+			patches, _ = p.addPadding(patches)
 			if got := PatchToText(patches); got != c.wantAfter {
 				t.Errorf("after: want: %q\ngot:  %q", c.wantAfter, got)
 			}
@@ -300,6 +311,7 @@ func TestPatchAddPadding(t *testing.T) {
 }
 
 func TestPatchApply(t *testing.T) {
+	ctx := context.Background()
 	formatResult := func(result string, applied []bool) string {
 		var s strings.Builder
 		s.WriteString(result)
@@ -310,20 +322,17 @@ func TestPatchApply(t *testing.T) {
 	}
 
 	t.Run("Null case", func(t *testing.T) {
-		dmp := New()
-		patches := dmp.PatchMake("", "")
-		result, applied := dmp.PatchApply(patches, "Hello world.")
+		p := newPatcher()
+		patches := p.Make(ctx, "", "")
+		result, applied := p.Apply(ctx, patches, "Hello world.")
 		if result != "Hello world." || len(applied) != 0 {
 			t.Errorf("want %q with 0 applied, got %q with %d", "Hello world.", result, len(applied))
 		}
 	})
 
 	t.Run("Standard patches", func(t *testing.T) {
-		dmp := New()
-		dmp.MatchDistance = 1000
-		dmp.MatchThreshold = 0.5
-		dmp.PatchDeleteThreshold = 0.5
-		patches := dmp.PatchMake("The quick brown fox jumps over the lazy dog.", "That quick brown fox jumped over a lazy dog.")
+		p := newPatcher()
+		patches := p.Make(ctx, "The quick brown fox jumps over the lazy dog.", "That quick brown fox jumped over a lazy dog.")
 		cases := []struct {
 			name    string
 			applyTo string
@@ -335,7 +344,7 @@ func TestPatchApply(t *testing.T) {
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				result, applied := dmp.PatchApply(patches, c.applyTo)
+				result, applied := p.Apply(ctx, patches, c.applyTo)
 				if got := formatResult(result, applied); got != c.want {
 					t.Errorf("want: %q\ngot:  %q", c.want, got)
 				}
@@ -344,15 +353,12 @@ func TestPatchApply(t *testing.T) {
 	})
 
 	t.Run("Big delete", func(t *testing.T) {
-		dmp := New()
-		dmp.MatchDistance = 1000
-		dmp.MatchThreshold = 0.5
-		dmp.PatchDeleteThreshold = 0.5
-		patches := dmp.PatchMake("x1234567890123456789012345678901234567890123456789012345678901234567890y", "xabcy")
+		p := newPatcher()
+		patches := p.Make(ctx, "x1234567890123456789012345678901234567890123456789012345678901234567890y", "xabcy")
 
 		t.Run("Small change", func(t *testing.T) {
 			want := "xabcy\ttrue\ttrue"
-			result, applied := dmp.PatchApply(patches, "x123456789012345678901234567890-----++++++++++-----123456789012345678901234567890y")
+			result, applied := p.Apply(ctx, patches, "x123456789012345678901234567890-----++++++++++-----123456789012345678901234567890y")
 			if got := formatResult(result, applied); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
 			}
@@ -360,19 +366,17 @@ func TestPatchApply(t *testing.T) {
 
 		t.Run("Big change 1", func(t *testing.T) {
 			want := "xabc12345678901234567890---------------++++++++++---------------12345678901234567890y\tfalse\ttrue"
-			result, applied := dmp.PatchApply(patches, "x12345678901234567890---------------++++++++++---------------12345678901234567890y")
+			result, applied := p.Apply(ctx, patches, "x12345678901234567890---------------++++++++++---------------12345678901234567890y")
 			if got := formatResult(result, applied); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
 			}
 		})
 
 		t.Run("Big change 2 with higher threshold", func(t *testing.T) {
-			dmp2 := New()
-			dmp2.MatchDistance = 1000
-			dmp2.MatchThreshold = 0.5
-			dmp2.PatchDeleteThreshold = 0.6
+			p2 := newPatcher()
+			p2.DeleteThreshold = 0.6
 			want := "xabcy\ttrue\ttrue"
-			result, applied := dmp2.PatchApply(patches, "x12345678901234567890---------------++++++++++---------------12345678901234567890y")
+			result, applied := p2.Apply(ctx, patches, "x12345678901234567890---------------++++++++++---------------12345678901234567890y")
 			if got := formatResult(result, applied); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
 			}
@@ -380,43 +384,42 @@ func TestPatchApply(t *testing.T) {
 	})
 
 	t.Run("Compensate for failed patch", func(t *testing.T) {
-		dmp := New()
-		dmp.MatchThreshold = 0.0
-		dmp.MatchDistance = 0
-		dmp.PatchDeleteThreshold = 0.5
-		patches := dmp.PatchMake("abcdefghijklmnopqrstuvwxyz--------------------1234567890", "abcXXXXXXXXXXdefghijklmnopqrstuvwxyz--------------------1234567YYYYYYYYYY890")
+		p := Patcher{
+			DeleteThreshold: 0.5,
+			Margin:          4,
+			EditCost:        4,
+			Matcher:         Matcher{Threshold: 0.0, Distance: 0, MaxBits: 32},
+		}
+		patches := p.Make(ctx, "abcdefghijklmnopqrstuvwxyz--------------------1234567890", "abcXXXXXXXXXXdefghijklmnopqrstuvwxyz--------------------1234567YYYYYYYYYY890")
 		want := "ABCDEFGHIJKLMNOPQRSTUVWXYZ--------------------1234567YYYYYYYYYY890\tfalse\ttrue"
-		result, applied := dmp.PatchApply(patches, "ABCDEFGHIJKLMNOPQRSTUVWXYZ--------------------1234567890")
+		result, applied := p.Apply(ctx, patches, "ABCDEFGHIJKLMNOPQRSTUVWXYZ--------------------1234567890")
 		if got := formatResult(result, applied); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
 
 	t.Run("No side effects", func(t *testing.T) {
-		dmp := New()
-		patches := dmp.PatchMake("", "test")
+		p := newPatcher()
+		patches := p.Make(ctx, "", "test")
 		patchStr := PatchToText(patches)
-		dmp.PatchApply(patches, "")
+		p.Apply(ctx, patches, "")
 		if got := PatchToText(patches); got != patchStr {
 			t.Error("patch text changed after apply")
 		}
 	})
 
 	t.Run("No side effects with major delete", func(t *testing.T) {
-		dmp := New()
-		patches := dmp.PatchMake("The quick brown fox jumps over the lazy dog.", "Woof")
+		p := newPatcher()
+		patches := p.Make(ctx, "The quick brown fox jumps over the lazy dog.", "Woof")
 		patchStr := PatchToText(patches)
-		dmp.PatchApply(patches, "The quick brown fox jumps over the lazy dog.")
+		p.Apply(ctx, patches, "The quick brown fox jumps over the lazy dog.")
 		if got := PatchToText(patches); got != patchStr {
 			t.Error("patch text changed after apply")
 		}
 	})
 
 	t.Run("Edge cases", func(t *testing.T) {
-		dmp := New()
-		dmp.MatchDistance = 1000
-		dmp.MatchThreshold = 0.5
-		dmp.PatchDeleteThreshold = 0.5
+		p := newPatcher()
 		cases := []struct {
 			name    string
 			text1   string
@@ -430,8 +433,8 @@ func TestPatchApply(t *testing.T) {
 		}
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				patches := dmp.PatchMake(c.text1, c.text2)
-				result, applied := dmp.PatchApply(patches, c.applyTo)
+				patches := p.Make(ctx, c.text1, c.text2)
+				result, applied := p.Apply(ctx, patches, c.applyTo)
 				if got := formatResult(result, applied); got != c.want {
 					t.Errorf("want: %q\ngot:  %q", c.want, got)
 				}

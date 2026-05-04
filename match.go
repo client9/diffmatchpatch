@@ -134,12 +134,3 @@ func (m Matcher) Match(text, pattern string, loc int) int {
 	return m.bitap(text, pattern, loc)
 }
 
-// ---- DiffMatchPatch bridge (used by patch methods) ----
-
-func (dmp *DiffMatchPatch) matcher() Matcher {
-	return Matcher{
-		Threshold: dmp.MatchThreshold,
-		Distance:  dmp.MatchDistance,
-		MaxBits:   dmp.MatchMaxBits,
-	}
-}

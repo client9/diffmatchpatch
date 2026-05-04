@@ -1,7 +1,6 @@
 package diffmatchpatch
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -65,51 +64,6 @@ func patchDeepCopy(patches []Patch) []Patch {
 	return out
 }
 
-// ---- DiffMatchPatch bridge ----
-
-func (dmp *DiffMatchPatch) patcher() Patcher {
-	return Patcher{
-		DeleteThreshold: dmp.PatchDeleteThreshold,
-		Margin:          dmp.PatchMargin,
-		EditCost:        dmp.DiffEditCost,
-		Matcher:         dmp.matcher(),
-	}
-}
-
-func (dmp *DiffMatchPatch) patchAddContext(patch *Patch, text string) {
-	dmp.patcher().addContext(patch, text)
-}
-
-// PatchMake computes patches to turn text1 into text2.
-func (dmp *DiffMatchPatch) PatchMake(text1, text2 string) []Patch {
-	return dmp.patcher().Make(context.Background(), text1, text2)
-}
-
-// PatchMakeFromDiffs computes patches from a diff list, deriving text1 from the diffs.
-func (dmp *DiffMatchPatch) PatchMakeFromDiffs(diffs []Diff) []Patch {
-	return dmp.patcher().MakeFromDiffs(diffs)
-}
-
-// PatchMakeFromTextAndDiffs computes patches from text1 and a diff list.
-func (dmp *DiffMatchPatch) PatchMakeFromTextAndDiffs(text1 string, diffs []Diff) []Patch {
-	return dmp.patcher().MakeFromTextAndDiffs(text1, diffs)
-}
-
-// PatchAddPadding adds padding to the start and end of patches.
-func (dmp *DiffMatchPatch) PatchAddPadding(patches []Patch) ([]Patch, string) {
-	return dmp.patcher().addPadding(patches)
-}
-
-// PatchSplitMax splits patches that are too long for the match algorithm.
-func (dmp *DiffMatchPatch) PatchSplitMax(patches []Patch) []Patch {
-	return dmp.patcher().splitMax(patches)
-}
-
-// PatchApply applies patches to text. Returns the patched text and a boolean
-// slice indicating which patches were applied.
-func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []bool) {
-	return dmp.patcher().Apply(context.Background(), patches, text)
-}
 
 // PatchToText serializes a list of patches to a string.
 func PatchToText(patches []Patch) string {

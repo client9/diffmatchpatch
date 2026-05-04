@@ -29,33 +29,6 @@ type Patch struct {
 	Length1, Length2 int
 }
 
-// DiffMatchPatch holds the configuration for diff, match, and patch operations.
-type DiffMatchPatch struct {
-	// DiffEditCost is the cost of an empty edit operation for efficiency cleanup.
-	DiffEditCost int
-	// MatchThreshold is the fuzzy match threshold (0=perfect, 1=very loose).
-	MatchThreshold float32
-	// MatchDistance is how far to search for a match (0=exact, math.MaxInt32=global).
-	MatchDistance int
-	// PatchDeleteThreshold is the threshold for deletions in patch_apply (0=strict, 1=loose).
-	PatchDeleteThreshold float32
-	// PatchMargin is the margin of context to include in each patch.
-	PatchMargin int
-	// MatchMaxBits is the number of bits in an int (use 64 on 64-bit systems).
-	MatchMaxBits int
-}
-
-// New returns a DiffMatchPatch with defaults matching the original Java implementation.
-func New() *DiffMatchPatch {
-	return &DiffMatchPatch{
-		DiffEditCost:         4,
-		MatchThreshold:       0.5,
-		MatchDistance:        1000,
-		PatchDeleteThreshold: 0.5,
-		PatchMargin:          4,
-		MatchMaxBits:         32,
-	}
-}
 
 
 // linesCharsResult holds the output of diffLinesToRunes.
