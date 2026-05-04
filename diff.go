@@ -571,6 +571,11 @@ func diffCleanupSemanticScore(one, two []rune) int {
 	nonAlpha2 := !unicode.IsLetter(char2) && !unicode.IsDigit(char2)
 	ws1 := nonAlpha1 && unicode.IsSpace(char1)
 	ws2 := nonAlpha2 && unicode.IsSpace(char2)
+	// The JS original uses /[\r\n]/ here, but its comment explicitly notes that
+	// each port may use language-native definitions since this scoring is cosmetic.
+	// C# and Java ports also use their native IsControl predicate (same behavior as
+	// Go); only Python3 uses the strict \r/\n check. \t/\v/\f score as linebreak (4)
+	// rather than whitespace (2), which is an acceptable Go-idiomatic choice.
 	lb1 := ws1 && unicode.IsControl(char1)
 	lb2 := ws2 && unicode.IsControl(char2)
 	blank1 := lb1 && blankLineEndRe.MatchString(string(one))
