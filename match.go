@@ -134,7 +134,7 @@ func (m Matcher) Match(text, pattern string, loc int) int {
 	return m.bitap(text, pattern, loc)
 }
 
-// ---- DiffMatchPatch wrappers (delegate to Matcher) ----
+// ---- DiffMatchPatch bridge (used by patch methods) ----
 
 func (dmp *DiffMatchPatch) matcher() Matcher {
 	return Matcher{
@@ -142,21 +142,4 @@ func (dmp *DiffMatchPatch) matcher() Matcher {
 		Distance:  dmp.MatchDistance,
 		MaxBits:   dmp.MatchMaxBits,
 	}
-}
-
-func (dmp *DiffMatchPatch) matchAlphabet(pattern string) map[rune]int {
-	return matchAlphabet(pattern)
-}
-
-func (dmp *DiffMatchPatch) matchBitapScore(e, x, loc, patLen int) float64 {
-	return dmp.matcher().bitapScore(e, x, loc, patLen)
-}
-
-func (dmp *DiffMatchPatch) matchBitap(text, pattern string, loc int) int {
-	return dmp.matcher().bitap(text, pattern, loc)
-}
-
-// MatchMain locates the best instance of pattern in text near loc.
-func (dmp *DiffMatchPatch) MatchMain(text, pattern string, loc int) int {
-	return dmp.matcher().Match(text, pattern, loc)
 }

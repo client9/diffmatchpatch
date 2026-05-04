@@ -5,7 +5,6 @@ import (
 )
 
 func TestMatchAlphabet(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name    string
 		pattern string
@@ -16,7 +15,7 @@ func TestMatchAlphabet(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := dmp.matchAlphabet(c.pattern)
+			got := matchAlphabet(c.pattern)
 			if len(got) != len(c.want) {
 				t.Errorf("map length: want %d, got %d", len(c.want), len(got))
 				return
@@ -60,10 +59,8 @@ func TestMatchBitap(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dmp := New()
-			dmp.MatchThreshold = c.threshold
-			dmp.MatchDistance = c.distance
-			if got := dmp.matchBitap(c.text, c.pattern, c.loc); got != c.want {
+			m := Matcher{Threshold: c.threshold, Distance: c.distance}
+			if got := m.bitap(c.text, c.pattern, c.loc); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -89,9 +86,8 @@ func TestMatchMain(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dmp := New()
-			dmp.MatchThreshold = c.threshold
-			if got := dmp.MatchMain(c.text, c.pattern, c.loc); got != c.want {
+			m := Matcher{Threshold: c.threshold, Distance: 1000}
+			if got := m.Match(c.text, c.pattern, c.loc); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})

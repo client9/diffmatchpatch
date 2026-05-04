@@ -339,10 +339,11 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 		var startLoc, endLoc int
 		endLoc = -1
 
+		m := dmp.matcher()
 		if text1Len > dmp.MatchMaxBits {
-			startLoc = dmp.MatchMain(text, string(r1[:dmp.MatchMaxBits]), expectedLoc)
+			startLoc = m.Match(text, string(r1[:dmp.MatchMaxBits]), expectedLoc)
 			if startLoc != -1 {
-				endLoc = dmp.MatchMain(text,
+				endLoc = m.Match(text,
 					string(r1[text1Len-dmp.MatchMaxBits:]),
 					expectedLoc+text1Len-dmp.MatchMaxBits)
 				if endLoc == -1 || startLoc >= endLoc {
@@ -350,7 +351,7 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 				}
 			}
 		} else {
-			startLoc = dmp.MatchMain(text, text1, expectedLoc)
+			startLoc = m.Match(text, text1, expectedLoc)
 		}
 
 		if startLoc == -1 {
