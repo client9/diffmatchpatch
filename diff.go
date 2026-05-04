@@ -173,10 +173,11 @@ func runesHasSuffix(s, suffix []rune) bool {
 	return len(s) >= len(suffix) && runesEqual(s[len(s)-len(suffix):], suffix)
 }
 
-// ---- context-based free-function computation pipeline ----
-
-// diffHalfMatch skips the half-match optimization when ctx has no deadline
-// (same logic as the old DiffTimeout <= 0 guard).
+// diffHalfMatch checks whether the two rune slices share a common substring
+// at least half the length of the longer slice. Returns five sub-slices
+// [prefix1, suffix1, prefix2, suffix2, common], or nil if no useful split
+// is found. The optimization is skipped when ctx has no deadline, since it
+// trades accuracy for speed.
 func diffHalfMatch(ctx context.Context, r1, r2 []rune) [][]rune {
 	_, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
@@ -214,7 +215,8 @@ func diffHalfMatch(ctx context.Context, r1, r2 []rune) [][]rune {
 	return [][]rune{hm[2], hm[3], hm[0], hm[1], hm[4]}
 }
 
-// diffHalfMatchI is shared by both the method and free-function half-match implementations.
+// diffHalfMatchI checks a single candidate midpoint i within long for a
+// half-match with short. Returns [longA, longB, shortA, shortB, common] or nil.
 func diffHalfMatchI(long, short []rune, i int) [][]rune {
 	seed := long[i : i+len(long)/4]
 	j := -1
@@ -465,8 +467,6 @@ func DiffLines(ctx context.Context, s1, s2 string) []Diff {
 	return diffLineMode(ctx, s1, s2)
 }
 
-// ---- end context-based pipeline ----
-
 // diffLinesToRunes encodes two texts into rune sequences where each rune value
 // is an index into a shared lineArray.
 func diffLinesToRunes(text1, text2 string) linesCharsResult {
@@ -504,7 +504,6 @@ func diffLinesToRunesMunge(text string, lineArray *[]string, lineHash map[string
 	}
 	return chars
 }
-
 
 // CleanupMerge reorders and merges like edit sections.
 func CleanupMerge(diffs []Diff) []Diff {
@@ -787,7 +786,9 @@ func CleanupSemantic(diffs []Diff) []Diff {
 }
 
 // CleanupEfficiency reduces diffs by eliminating operationally trivial equalities.
-// editCost is the threshold below which an equality is considered cheap to eliminate (default 4).
+// editCost is the minimum rune count of an equality that is worth preserving;
+// equalities shorter than this threshold are converted to insert/delete pairs.
+// A value of 4 is typical.
 func CleanupEfficiency(diffs []Diff, editCost int) []Diff {
 	diffs = append([]Diff{}, diffs...)
 	changes := false
@@ -850,7 +851,6 @@ func CleanupEfficiency(diffs []Diff, editCost int) []Diff {
 	return diffs
 }
 
-
 func boolToInt(b bool) int {
 	if b {
 		return 1
@@ -906,7 +906,8 @@ func Dest(diffs []Diff) string {
 	return buf.String()
 }
 
-// Levenshtein computes the Levenshtein distance of a diff.
+// Levenshtein returns the edit distance of diffs in runes
+// (number of inserted plus deleted runes, not counting equalities).
 func Levenshtein(diffs []Diff) int {
 	levenshtein := 0
 	ins, del := 0, 0
@@ -924,7 +925,8 @@ func Levenshtein(diffs []Diff) int {
 	return levenshtein + max(ins, del)
 }
 
-// TranslateIndex translates a location in text1 to the equivalent location in text2.
+// TranslateIndex maps a rune index in text1 to the corresponding rune index in
+// text2, accounting for insertions and deletions described by diffs.
 func TranslateIndex(diffs []Diff, loc int) int {
 	chars1, chars2 := 0, 0
 	lastChars1, lastChars2 := 0, 0
@@ -949,7 +951,9 @@ func TranslateIndex(diffs []Diff, loc int) int {
 	return lastChars2 + (loc - lastChars1)
 }
 
-// ToDelta encodes a diff as a delta string.
+// ToDelta encodes a diff as a compact delta string relative to text1.
+// The format uses tab-separated tokens: "+text" for inserts, "-N" for deletes,
+// and "=N" for equalities, where N is a rune count.
 func ToDelta(diffs []Diff) string {
 	var buf strings.Builder
 	for i, d := range diffs {
@@ -971,7 +975,8 @@ func ToDelta(diffs []Diff) string {
 	return buf.String()
 }
 
-// FromDelta reconstructs a diff from a text1 source and delta string.
+// FromDelta reconstructs a diff from text1 and a delta string produced by ToDelta.
+// Returns an error if the delta is malformed or inconsistent with the length of text1.
 func FromDelta(text1, delta string) ([]Diff, error) {
 	var diffs []Diff
 	r1 := []rune(text1)

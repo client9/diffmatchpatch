@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// String returns the GNU unified diff format for a Patch.
+// String serializes the patch in GNU unified diff format, with percent-encoded
+// non-ASCII characters. Suitable for storage and transmission; parse with PatchFromText.
 func (p Patch) String() string {
 	var coords1, coords2 string
 	if p.Length1 == 0 {
@@ -63,7 +64,6 @@ func patchDeepCopy(patches []Patch) []Patch {
 	}
 	return out
 }
-
 
 // PatchToText serializes a list of patches to a string.
 func PatchToText(patches []Patch) string {
@@ -144,4 +144,3 @@ func PatchFromText(textline string) ([]Patch, error) {
 	}
 	return patches, nil
 }
-

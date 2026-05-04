@@ -113,7 +113,9 @@ func (m Matcher) bitap(text, pattern string, loc int) int {
 	return bestLoc
 }
 
-// Match locates the best instance of pattern in text near loc.
+// Match locates the best instance of pattern in text near loc and returns
+// the rune index of the match, or -1 if no match is found within the
+// configured Threshold and Distance.
 func (m Matcher) Match(text, pattern string, loc int) int {
 	rText := []rune(text)
 	rPattern := []rune(pattern)
@@ -133,4 +135,3 @@ func (m Matcher) Match(text, pattern string, loc int) int {
 	}
 	return m.bitap(text, pattern, loc)
 }
-
