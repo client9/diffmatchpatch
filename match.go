@@ -1,5 +1,7 @@
 package diffmatchpatch
 
+import "math/bits"
+
 // matchAlphabet computes the alphabet bitmask for Bitap's pattern.
 func matchAlphabet(pattern string) map[rune]int {
 	s := make(map[rune]int)
@@ -19,9 +21,13 @@ type Matcher struct {
 	Threshold float32
 	// Distance is how far from loc to search (0 = exact location only).
 	Distance int
-	// MaxBits is the pattern length limit for Bitap (typically 32 or 64).
-	MaxBits int
 }
+
+// bitapMaxBits is the maximum pattern length Bitap can handle, determined by
+// the platform's integer word size (bits.UintSize). The JS original used 32
+// because JavaScript bitwise ops are 32-bit; Go uses native int width (64 on
+// modern platforms).
+const bitapMaxBits = bits.UintSize
 
 func (m Matcher) bitapScore(e, x, loc, patLen int) float64 {
 	accuracy := float64(e) / float64(patLen)
@@ -132,6 +138,9 @@ func (m Matcher) Match(text, pattern string, loc int) int {
 	}
 	if loc+patLen <= textLen && string(rText[loc:loc+patLen]) == pattern {
 		return loc
+	}
+	if patLen > bitapMaxBits {
+		return -1
 	}
 	return m.bitap(text, pattern, loc)
 }

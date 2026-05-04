@@ -10,7 +10,7 @@ import (
 // The zero value is valid but conservative: a DeleteThreshold of 0 rejects any
 // imperfect match, and a Margin of 0 includes no context around changes.
 // Typical values: DeleteThreshold 0.5, Margin 4, EditCost 4,
-// Matcher{Threshold: 0.5, Distance: 1000, MaxBits: 32}.
+// Matcher{Threshold: 0.5, Distance: 1000}.
 type Patcher struct {
 	// DeleteThreshold is the maximum acceptable edit-distance ratio between the
 	// expected and matched text when applying a patch fuzzily. Patches whose
@@ -63,7 +63,7 @@ func (p Patcher) addContext(patch *Patch, text string) {
 	padding := 0
 
 	for runesCountAtLeast2(rText, pattern) &&
-		(p.Matcher.MaxBits == 0 || len(pattern) < p.Matcher.MaxBits-p.Margin-p.Margin) {
+		len(pattern) < bitapMaxBits-p.Margin-p.Margin {
 		padding += p.Margin
 		start := max(0, patch.Start2-padding)
 		end := min(textLen, patch.Start2+patch.Length1+padding)
@@ -216,7 +216,7 @@ func (p Patcher) addPadding(patches []Patch) ([]Patch, string) {
 }
 
 func (p Patcher) splitMax(patches []Patch) []Patch {
-	patchSize := p.Matcher.MaxBits
+	patchSize := bitapMaxBits
 	for x := 0; x < len(patches); x++ {
 		if patches[x].Length1 <= patchSize {
 			continue
@@ -305,7 +305,7 @@ func (p Patcher) splitMax(patches []Patch) []Patch {
 
 // Apply applies patches to text and returns the patched text along with a
 // boolean result per patch indicating whether it was applied successfully.
-// Patches that span more than Matcher.MaxBits runes are split internally, so
+// Patches that span more than bitapMaxBits runes are split internally, so
 // the results slice may be longer than the input patches slice. A patch is
 // rejected if its location cannot be found within Matcher.Threshold or if the
 // fuzzy edit-distance ratio exceeds DeleteThreshold.
@@ -332,12 +332,12 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 		var startLoc, endLoc int
 		endLoc = -1
 
-		if text1Len > p.Matcher.MaxBits {
-			startLoc = p.Matcher.Match(text, string(r1[:p.Matcher.MaxBits]), expectedLoc)
+		if text1Len > bitapMaxBits {
+			startLoc = p.Matcher.Match(text, string(r1[:bitapMaxBits]), expectedLoc)
 			if startLoc != -1 {
 				endLoc = p.Matcher.Match(text,
-					string(r1[text1Len-p.Matcher.MaxBits:]),
-					expectedLoc+text1Len-p.Matcher.MaxBits)
+					string(r1[text1Len-bitapMaxBits:]),
+					expectedLoc+text1Len-bitapMaxBits)
 				if endLoc == -1 || startLoc >= endLoc {
 					startLoc = -1
 				}
@@ -359,7 +359,7 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 				end := min(startLoc+text1Len, textLen)
 				text2 = string(rText[startLoc:end])
 			} else {
-				end := min(endLoc+p.Matcher.MaxBits, textLen)
+				end := min(endLoc+bitapMaxBits, textLen)
 				text2 = string(rText[startLoc:end])
 			}
 			if text1 == text2 {
@@ -367,7 +367,7 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+text1Len:])
 			} else {
 				diffs := diffMainRunes(ctx, []rune(text1), []rune(text2), false)
-				if text1Len > p.Matcher.MaxBits &&
+				if text1Len > bitapMaxBits &&
 					float64(Levenshtein(diffs))/float64(text1Len) > float64(p.DeleteThreshold) {
 					results[x] = false
 				} else {

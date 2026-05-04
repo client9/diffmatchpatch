@@ -65,9 +65,8 @@ Locate the best approximate match for a pattern within a text:
 
 ```go
 m := diffmatchpatch.Matcher{
-    Threshold: 0.5,   // 0 = exact only, 1 = match anything
-    Distance:  1000,  // how far from loc to search
-    MaxBits:   32,    // pattern length limit for Bitap
+    Threshold: 0.5,  // 0 = exact only, 1 = match anything
+    Distance:  1000, // how far from loc to search
 }
 loc := m.Match(text, pattern, expectedLoc)
 // returns -1 if no match found within threshold
@@ -83,7 +82,6 @@ p := diffmatchpatch.Patcher{
     Matcher: diffmatchpatch.Matcher{
         Threshold: 0.5,
         Distance:  1000,
-        MaxBits:   32,
     },
 }
 
@@ -98,7 +96,7 @@ patches, err := serial.PatchFromText(text)
 result, applied := p.Apply(context.Background(), patches, target)
 ```
 
-`applied` is a `[]bool` with one entry per patch (patches spanning more than `MaxBits` runes are split, so `len(applied)` may exceed `len(patches)`).
+`applied` is a `[]bool` with one entry per patch (large patches are split to fit within the platform's Bitap word size, so `len(applied)` may exceed `len(patches)`).
 
 ## Utilities
 

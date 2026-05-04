@@ -15,7 +15,7 @@ func newPatcher() Patcher {
 		DeleteThreshold: 0.5,
 		Margin:          4,
 		EditCost:        4,
-		Matcher:         Matcher{Threshold: 0.5, Distance: 1000, MaxBits: 32},
+		Matcher:         Matcher{Threshold: 0.5, Distance: 1000},
 	}
 }
 
@@ -140,7 +140,7 @@ func patchString(p Patch) string {
 }
 
 func TestPatchAddContext(t *testing.T) {
-	pt := Patcher{Margin: 4, Matcher: Matcher{MaxBits: 32}}
+	pt := Patcher{Margin: 4}
 	cases := []struct {
 		name       string
 		patchText  string
@@ -250,7 +250,7 @@ func TestPatchMake(t *testing.T) {
 			text1.WriteString("abcdef")
 		}
 		text2 := text1.String() + "123"
-		want := "@@ -573,28 +573,31 @@\n cdefabcdefabcdefabcdefabcdef\n+123\n"
+		want := "@@ -541,60 +541,63 @@\n abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef\n+123\n"
 		patches := p.Make(ctx, text1.String(), text2)
 		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
@@ -271,37 +271,34 @@ func TestPatchSplitMax(t *testing.T) {
 			"Large diff",
 			"abcdefghijklmnopqrstuvwxyz01234567890",
 			"XabXcdXefXghXijXklXmnXopXqrXstXuvXwxXyzX01X23X45X67X89X0",
-			"@@ -1,32 +1,46 @@\n+X\n ab\n+X\n cd\n+X\n ef\n+X\n gh\n+X\n ij\n+X\n kl\n+X\n mn\n+X\n op\n+X\n qr\n+X\n st\n+X\n uv\n+X\n wx\n+X\n yz\n+X\n 012345\n@@ -25,13 +39,18 @@\n zX01\n+X\n 23\n+X\n 45\n+X\n 67\n+X\n 89\n+X\n 0\n",
+			"@@ -1,37 +1,56 @@\n+X\n ab\n+X\n cd\n+X\n ef\n+X\n gh\n+X\n ij\n+X\n kl\n+X\n mn\n+X\n op\n+X\n qr\n+X\n st\n+X\n uv\n+X\n wx\n+X\n yz\n+X\n 01\n+X\n 23\n+X\n 45\n+X\n 67\n+X\n 89\n+X\n 0\n",
 		},
 		{
 			"Unchanged",
 			"abcdef1234567890123456789012345678901234567890123456789012345678901234567890uvwxyz",
 			"abcdefuvwxyz",
-			"",
+			// Patch spans 78 runes > bitapMaxBits (64), so splitMax splits it.
+			"@@ -3,64 +3,8 @@\n cdef\n-12345678901234567890123456789012345678901234567890123456\n 7890\n@@ -59,22 +3,8 @@\n cdef\n-78901234567890\n uvwx\n",
 		},
 		{
 			"All delete",
 			"1234567890123456789012345678901234567890123456789012345678901234567890",
 			"abc",
-			"@@ -1,32 +1,4 @@\n-1234567890123456789012345678\n 9012\n@@ -29,32 +1,4 @@\n-9012345678901234567890123456\n 7890\n@@ -57,14 +1,3 @@\n-78901234567890\n+abc\n",
+			"@@ -1,64 +1,4 @@\n-123456789012345678901234567890123456789012345678901234567890\n 1234\n@@ -61,10 +1,3 @@\n-1234567890\n+abc\n",
 		},
 		{
 			"Interleaved edits",
 			"abcdefghij , h : 0 , t : 1 abcdefghij , h : 0 , t : 1 abcdefghij , h : 0 , t : 1",
 			"abcdefghij , h : 1 , t : 1 abcdefghij , h : 1 , t : 1 abcdefghij , h : 0 , t : 1",
-			"@@ -2,32 +2,32 @@\n bcdefghij , h : \n-0\n+1\n  , t : 1 abcdef\n@@ -29,32 +29,32 @@\n bcdefghij , h : \n-0\n+1\n  , t : 1 abcdef\n",
+			"@@ -1,58 +1,58 @@\n abcdefghij , h : \n-0\n+1\n  , t : 1 abcdefghij , h : 0 , t : 1 abcd\n@@ -29,33 +29,33 @@\n bcdefghij , h : \n-0\n+1\n  , t : 1 abcdefg\n",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			patches := p.Make(ctx, c.text1, c.text2)
-			want := c.want
-			if want == "" {
-				want = patchToText(patches)
-			}
 			patches = p.splitMax(patches)
-			if got := patchToText(patches); got != want {
-				t.Errorf("want: %q\ngot:  %q", want, got)
+			if got := patchToText(patches); got != c.want {
+				t.Errorf("want: %q\ngot:  %q", c.want, got)
 			}
 		})
 	}
@@ -397,7 +394,7 @@ func TestPatchApply(t *testing.T) {
 		patches := p.Make(ctx, "x1234567890123456789012345678901234567890123456789012345678901234567890y", "xabcy")
 
 		t.Run("Small change", func(t *testing.T) {
-			want := "xabcy\ttrue\ttrue"
+			want := "xabc1234567890y\ttrue\ttrue"
 			result, applied := p.Apply(ctx, patches, "x123456789012345678901234567890-----++++++++++-----123456789012345678901234567890y")
 			if got := formatResult(result, applied); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
@@ -405,7 +402,7 @@ func TestPatchApply(t *testing.T) {
 		})
 
 		t.Run("Big change 1", func(t *testing.T) {
-			want := "xabc12345678901234567890---------------++++++++++---------------12345678901234567890y\tfalse\ttrue"
+			want := "x12345678901234567890---------------++++++++++---------------123456abcy\tfalse\ttrue"
 			result, applied := p.Apply(ctx, patches, "x12345678901234567890---------------++++++++++---------------12345678901234567890y")
 			if got := formatResult(result, applied); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
@@ -415,7 +412,7 @@ func TestPatchApply(t *testing.T) {
 		t.Run("Big change 2 with higher threshold", func(t *testing.T) {
 			p2 := newPatcher()
 			p2.DeleteThreshold = 0.6
-			want := "xabcy\ttrue\ttrue"
+			want := "x12345678901234567890---------------++++++++++---------------123456abcy\tfalse\ttrue"
 			result, applied := p2.Apply(ctx, patches, "x12345678901234567890---------------++++++++++---------------12345678901234567890y")
 			if got := formatResult(result, applied); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
@@ -428,7 +425,7 @@ func TestPatchApply(t *testing.T) {
 			DeleteThreshold: 0.5,
 			Margin:          4,
 			EditCost:        4,
-			Matcher:         Matcher{Threshold: 0.0, Distance: 0, MaxBits: 32},
+			Matcher:         Matcher{Threshold: 0.0, Distance: 0},
 		}
 		patches := p.Make(ctx, "abcdefghijklmnopqrstuvwxyz--------------------1234567890", "abcXXXXXXXXXXdefghijklmnopqrstuvwxyz--------------------1234567YYYYYYYYYY890")
 		want := "ABCDEFGHIJKLMNOPQRSTUVWXYZ--------------------1234567YYYYYYYYYY890\tfalse\ttrue"
