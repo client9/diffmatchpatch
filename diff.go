@@ -2,58 +2,11 @@ package diffmatchpatch
 
 import (
 	"context"
-	"fmt"
-	"net/url"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
-
-// encodeURISafe marks byte values that do NOT need % encoding.
-// Matches JavaScript's encodeURI safe set.
-var encodeURISafe = func() [256]bool {
-	var safe [256]bool
-	for c := 'A'; c <= 'Z'; c++ {
-		safe[c] = true
-	}
-	for c := 'a'; c <= 'z'; c++ {
-		safe[c] = true
-	}
-	for c := '0'; c <= '9'; c++ {
-		safe[c] = true
-	}
-	for _, c := range "-_.!~*'();/?:@&=+$,# " {
-		safe[c] = true
-	}
-	return safe
-}()
-
-// encodeURI percent-encodes s, compatible with JavaScript's encodeURI.
-func encodeURI(s string) string {
-	var buf strings.Builder
-	for i := 0; i < len(s); {
-		b := s[i]
-		if b < 128 && encodeURISafe[b] {
-			buf.WriteByte(b)
-			i++
-		} else {
-			_, size := utf8.DecodeRuneInString(s[i:])
-			for j := range size {
-				fmt.Fprintf(&buf, "%%%02X", s[i+j])
-			}
-			i += size
-		}
-	}
-	return buf.String()
-}
-
-// decodeURI decodes a percent-encoded URI string.
-func decodeURI(s string) (string, error) {
-	return url.PathUnescape(s)
-}
 
 func diffCommonPrefixRunes(r1, r2 []rune) int {
 	n := min(len(r1), len(r2))
@@ -953,79 +906,4 @@ func TranslateIndex(diffs []Diff, loc int) int {
 		return lastChars2
 	}
 	return lastChars2 + (loc - lastChars1)
-}
-
-// ToDelta encodes a diff as a compact delta string relative to text1.
-// The format uses tab-separated tokens: "+text" for inserts, "-N" for deletes,
-// and "=N" for equalities, where N is a rune count.
-func ToDelta(diffs []Diff) string {
-	var buf strings.Builder
-	for i, d := range diffs {
-		switch d.Type {
-		case Insert:
-			buf.WriteByte('+')
-			buf.WriteString(encodeURI(string(d.Text)))
-		case Delete:
-			buf.WriteByte('-')
-			fmt.Fprintf(&buf, "%d", len(d.Text))
-		case Equal:
-			buf.WriteByte('=')
-			fmt.Fprintf(&buf, "%d", len(d.Text))
-		}
-		if i < len(diffs)-1 {
-			buf.WriteByte('\t')
-		}
-	}
-	return buf.String()
-}
-
-// FromDelta reconstructs a diff from text1 and a delta string produced by ToDelta.
-// Returns an error if the delta is malformed or inconsistent with the length of text1.
-func FromDelta(text1, delta string) ([]Diff, error) {
-	var diffs []Diff
-	r1 := []rune(text1)
-	pointer := 0
-	for token := range strings.SplitSeq(delta, "\t") {
-		if token == "" {
-			continue
-		}
-		param := token[1:]
-		switch token[0] {
-		case '+':
-			decoded, err := decodeURI(param)
-			if err != nil {
-				return nil, fmt.Errorf("illegal escape in DiffFromDelta: %w", err)
-			}
-			diffs = append(diffs, Diff{Insert, []rune(decoded)})
-		case '-', '=':
-			n, err := parsePositiveInt(param)
-			if err != nil {
-				return nil, fmt.Errorf("invalid number in DiffFromDelta: %s", param)
-			}
-			if pointer+n > len(r1) {
-				return nil, fmt.Errorf("delta length (%d) larger than source text length (%d)", pointer+n, len(r1))
-			}
-			chunk := slices.Clone(r1[pointer : pointer+n])
-			pointer += n
-			if token[0] == '=' {
-				diffs = append(diffs, Diff{Equal, chunk})
-			} else {
-				diffs = append(diffs, Diff{Delete, chunk})
-			}
-		default:
-			return nil, fmt.Errorf("invalid diff operation in DiffFromDelta: %c", token[0])
-		}
-	}
-	if pointer != len(r1) {
-		return nil, fmt.Errorf("delta length (%d) smaller than source text length (%d)", pointer, len(r1))
-	}
-	return diffs, nil
-}
-
-func parsePositiveInt(s string) (int, error) {
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("not a positive integer: %q", s)
-	}
-	return n, nil
 }

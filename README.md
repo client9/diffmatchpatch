@@ -107,9 +107,25 @@ diffmatchpatch.Source(diffs)              // reconstruct text1
 diffmatchpatch.Dest(diffs)               // reconstruct text2
 diffmatchpatch.Levenshtein(diffs)        // edit distance in runes
 diffmatchpatch.TranslateIndex(diffs, i)  // map index from text1 to text2
-diffmatchpatch.ToDelta(diffs)            // compact delta encoding
-diffmatchpatch.FromDelta(text1, delta)   // reconstruct diff from delta
 diffmatchpatch.PrettyHtml(diffs)         // HTML visualization
+```
+
+## Serialization
+
+The `serial` subpackage provides text serialization for both diffs and patches.
+These formats use URI encoding for compatibility with the original JavaScript
+implementation and other diff-match-patch ports.
+
+```go
+import "github.com/client9/diffmatchpatch/serial"
+
+// Compact cross-language diff encoding
+encoded := serial.ToDelta(diffs)
+diffs, err := serial.FromDelta(text1, encoded)
+
+// Patch text format (unified-diff-like, but character-granularity)
+text := serial.PatchToText(patches)
+patches, err := serial.PatchFromText(text)
 ```
 
 ## License

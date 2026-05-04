@@ -3,8 +3,11 @@ package diffmatchpatch
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func newPatcher() Patcher {
@@ -16,78 +19,124 @@ func newPatcher() Patcher {
 	}
 }
 
-func TestPatchObj(t *testing.T) {
-	p := Patch{
-		Diffs:   makeDiffs(Equal, "jump", Delete, "s", Insert, "ed", Equal, " over ", Delete, "the", Insert, "a", Equal, "\nlaz"),
-		Start1:  20,
-		Start2:  21,
-		Length1: 18,
-		Length2: 17,
+// parseTestPatch parses a simple ASCII-only patch string for use in tests.
+// No URI decoding is performed; only suitable for test inputs that don't need it.
+var testPatchHeaderRe = regexp.MustCompile(`^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@$`)
+
+func parseTestPatch(text string) Patch {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	m := testPatchHeaderRe.FindStringSubmatch(lines[0])
+	var p Patch
+	p.Start1, _ = strconv.Atoi(m[1])
+	if m[2] == "" {
+		p.Start1--
+		p.Length1 = 1
+	} else if m[2] == "0" {
+		p.Length1 = 0
+	} else {
+		p.Start1--
+		p.Length1, _ = strconv.Atoi(m[2])
 	}
-	want := "@@ -21,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n %0Alaz\n"
-	if got := p.String(); got != want {
-		t.Errorf("want: %q\ngot:  %q", want, got)
+	p.Start2, _ = strconv.Atoi(m[3])
+	if m[4] == "" {
+		p.Start2--
+		p.Length2 = 1
+	} else if m[4] == "0" {
+		p.Length2 = 0
+	} else {
+		p.Start2--
+		p.Length2, _ = strconv.Atoi(m[4])
 	}
+	for _, line := range lines[1:] {
+		if line == "" {
+			continue
+		}
+		content := []rune(line[1:])
+		switch line[0] {
+		case '-':
+			p.Diffs = append(p.Diffs, Diff{Delete, content})
+		case '+':
+			p.Diffs = append(p.Diffs, Diff{Insert, content})
+		case ' ':
+			p.Diffs = append(p.Diffs, Diff{Equal, content})
+		}
+	}
+	return p
 }
 
-func TestPatchFromText(t *testing.T) {
-	cases := []struct {
-		name      string
-		input     string
-		wantPatch string
-		wantErr   bool
-	}{
-		{"Empty", "", "", false},
-		{"Single patch", "@@ -21,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n %0Alaz\n", "@@ -21,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n %0Alaz\n", false},
-		{"No length #1", "@@ -1 +1 @@\n-a\n+b\n", "@@ -1 +1 @@\n-a\n+b\n", false},
-		{"No length #2", "@@ -1,3 +0,0 @@\n-abc\n", "@@ -1,3 +0,0 @@\n-abc\n", false},
-		{"No length #3", "@@ -0,0 +1,3 @@\n+abc\n", "@@ -0,0 +1,3 @@\n+abc\n", false},
-		{"Bad input", "Bad\nPatch\n", "", true},
+// patchToText is a local test helper. The public API lives in serial.PatchToText.
+func patchToText(patches []Patch) string {
+	var buf strings.Builder
+	for _, p := range patches {
+		buf.WriteString(patchString(p))
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			patches, err := PatchFromText(c.input)
-			if c.wantErr {
-				if err == nil {
-					t.Error("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if c.wantPatch == "" {
-				if len(patches) != 0 {
-					t.Errorf("want 0 patches, got %d", len(patches))
-				}
-				return
-			}
-			if got := patches[0].String(); got != c.wantPatch {
-				t.Errorf("want: %q\ngot:  %q", c.wantPatch, got)
-			}
-		})
-	}
+	return buf.String()
 }
 
-func TestPatchToText(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-	}{
-		{"Single", "@@ -21,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"},
-		{"Dual", "@@ -1,9 +1,9 @@\n-f\n+F\n oo+fooba\n@@ -7,9 +7,9 @@\n obar\n-,\n+.\n  tes\n"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			patches, err := PatchFromText(c.input)
-			if err != nil {
-				t.Fatalf("PatchFromText error: %v", err)
+func patchString(p Patch) string {
+	encodeURISafe := func() [256]bool {
+		var safe [256]bool
+		for c := 'A'; c <= 'Z'; c++ {
+			safe[c] = true
+		}
+		for c := 'a'; c <= 'z'; c++ {
+			safe[c] = true
+		}
+		for c := '0'; c <= '9'; c++ {
+			safe[c] = true
+		}
+		for _, c := range "-_.!~*'();/?:@&=+$,# " {
+			safe[c] = true
+		}
+		return safe
+	}()
+	encode := func(s string) string {
+		var b strings.Builder
+		for i := 0; i < len(s); {
+			ch := s[i]
+			if ch < 128 && encodeURISafe[ch] {
+				b.WriteByte(ch)
+				i++
+			} else {
+				_, size := utf8.DecodeRuneInString(s[i:])
+				for j := range size {
+					fmt.Fprintf(&b, "%%%02X", s[i+j])
+				}
+				i += size
 			}
-			if got := PatchToText(patches); got != c.input {
-				t.Errorf("want: %q\ngot:  %q", c.input, got)
-			}
-		})
+		}
+		return b.String()
 	}
+	var coords1, coords2 string
+	if p.Length1 == 0 {
+		coords1 = fmt.Sprintf("%d,0", p.Start1)
+	} else if p.Length1 == 1 {
+		coords1 = fmt.Sprintf("%d", p.Start1+1)
+	} else {
+		coords1 = fmt.Sprintf("%d,%d", p.Start1+1, p.Length1)
+	}
+	if p.Length2 == 0 {
+		coords2 = fmt.Sprintf("%d,0", p.Start2)
+	} else if p.Length2 == 1 {
+		coords2 = fmt.Sprintf("%d", p.Start2+1)
+	} else {
+		coords2 = fmt.Sprintf("%d,%d", p.Start2+1, p.Length2)
+	}
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "@@ -%s +%s @@\n", coords1, coords2)
+	for _, d := range p.Diffs {
+		switch d.Type {
+		case Insert:
+			buf.WriteByte('+')
+		case Delete:
+			buf.WriteByte('-')
+		case Equal:
+			buf.WriteByte(' ')
+		}
+		buf.WriteString(encode(string(d.Text)))
+		buf.WriteByte('\n')
+	}
+	return buf.String()
 }
 
 func TestPatchAddContext(t *testing.T) {
@@ -125,10 +174,9 @@ func TestPatchAddContext(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			patches, _ := PatchFromText(c.patchText)
-			p := patches[0]
+			p := parseTestPatch(c.patchText)
 			pt.addContext(&p, c.sourceText)
-			if got := p.String(); got != c.want {
+			if got := patchString(p); got != c.want {
 				t.Errorf("want: %q\ngot:  %q", c.want, got)
 			}
 		})
@@ -141,7 +189,7 @@ func TestPatchMake(t *testing.T) {
 
 	t.Run("Null case", func(t *testing.T) {
 		patches := p.Make(ctx, "", "")
-		if got := PatchToText(patches); got != "" {
+		if got := patchToText(patches); got != "" {
 			t.Errorf("want empty, got %q", got)
 		}
 	})
@@ -151,7 +199,7 @@ func TestPatchMake(t *testing.T) {
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,8 +1,7 @@\n Th\n-at\n+e\n  qui\n@@ -21,17 +21,18 @@\n jump\n-ed\n+s\n  over \n-a\n+the\n  laz\n"
 		patches := p.Make(ctx, text2, text1)
-		if got := PatchToText(patches); got != want {
+		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
@@ -161,7 +209,7 @@ func TestPatchMake(t *testing.T) {
 		text2 := "That quick brown fox jumped over a lazy dog."
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
 		patches := p.Make(ctx, text1, text2)
-		if got := PatchToText(patches); got != want {
+		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
@@ -172,7 +220,7 @@ func TestPatchMake(t *testing.T) {
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
 		diffs := DiffStrings(ctx, text1, text2)
 		patches := p.MakeFromDiffs(diffs)
-		if got := PatchToText(patches); got != want {
+		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
@@ -183,7 +231,7 @@ func TestPatchMake(t *testing.T) {
 		want := "@@ -1,11 +1,12 @@\n Th\n-e\n+at\n  quick b\n@@ -22,18 +22,17 @@\n jump\n-s\n+ed\n  over \n-the\n+a\n  laz\n"
 		diffs := DiffStrings(ctx, text1, text2)
 		patches := p.MakeFromTextAndDiffs(text1, diffs)
-		if got := PatchToText(patches); got != want {
+		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
@@ -191,16 +239,8 @@ func TestPatchMake(t *testing.T) {
 	t.Run("Character encoding", func(t *testing.T) {
 		patches := p.Make(ctx, "`1234567890-=[]\\;',./", "~!@#$%^&*()_+{}|:\"<>?")
 		want := "@@ -1,21 +1,21 @@\n-%601234567890-=%5B%5D%5C;',./\n+~!@#$%25%5E&*()_+%7B%7D%7C:%22%3C%3E?\n"
-		if got := PatchToText(patches); got != want {
+		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
-		}
-	})
-
-	t.Run("Character decoding", func(t *testing.T) {
-		patches, _ := PatchFromText("@@ -1,21 +1,21 @@\n-%601234567890-=%5B%5D%5C;',./\n+~!@#$%25%5E&*()_+%7B%7D%7C:%22%3C%3E?\n")
-		want := makeDiffs(Delete, "`1234567890-=[]\\;',./", Insert, "~!@#$%^&*()_+{}|:\"<>?")
-		if !diffsEqual(patches[0].Diffs, want) {
-			t.Errorf("want %v, got %v", want, patches[0].Diffs)
 		}
 	})
 
@@ -212,7 +252,7 @@ func TestPatchMake(t *testing.T) {
 		text2 := text1.String() + "123"
 		want := "@@ -573,28 +573,31 @@\n cdefabcdefabcdefabcdefabcdef\n+123\n"
 		patches := p.Make(ctx, text1.String(), text2)
-		if got := PatchToText(patches); got != want {
+		if got := patchToText(patches); got != want {
 			t.Errorf("want: %q\ngot:  %q", want, got)
 		}
 	})
@@ -257,10 +297,10 @@ func TestPatchSplitMax(t *testing.T) {
 			patches := p.Make(ctx, c.text1, c.text2)
 			want := c.want
 			if want == "" {
-				want = PatchToText(patches)
+				want = patchToText(patches)
 			}
 			patches = p.splitMax(patches)
-			if got := PatchToText(patches); got != want {
+			if got := patchToText(patches); got != want {
 				t.Errorf("want: %q\ngot:  %q", want, got)
 			}
 		})
@@ -299,11 +339,11 @@ func TestPatchAddPadding(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			patches := p.Make(ctx, c.text1, c.text2)
-			if got := PatchToText(patches); got != c.wantBefore {
+			if got := patchToText(patches); got != c.wantBefore {
 				t.Errorf("before: want: %q\ngot:  %q", c.wantBefore, got)
 			}
 			patches, _ = p.addPadding(patches)
-			if got := PatchToText(patches); got != c.wantAfter {
+			if got := patchToText(patches); got != c.wantAfter {
 				t.Errorf("after: want: %q\ngot:  %q", c.wantAfter, got)
 			}
 		})
@@ -401,9 +441,9 @@ func TestPatchApply(t *testing.T) {
 	t.Run("No side effects", func(t *testing.T) {
 		p := newPatcher()
 		patches := p.Make(ctx, "", "test")
-		patchStr := PatchToText(patches)
+		patchStr := patchToText(patches)
 		p.Apply(ctx, patches, "")
-		if got := PatchToText(patches); got != patchStr {
+		if got := patchToText(patches); got != patchStr {
 			t.Error("patch text changed after apply")
 		}
 	})
@@ -411,9 +451,9 @@ func TestPatchApply(t *testing.T) {
 	t.Run("No side effects with major delete", func(t *testing.T) {
 		p := newPatcher()
 		patches := p.Make(ctx, "The quick brown fox jumps over the lazy dog.", "Woof")
-		patchStr := PatchToText(patches)
+		patchStr := patchToText(patches)
 		p.Apply(ctx, patches, "The quick brown fox jumps over the lazy dog.")
-		if got := PatchToText(patches); got != patchStr {
+		if got := patchToText(patches); got != patchStr {
 			t.Error("patch text changed after apply")
 		}
 	})
