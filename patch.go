@@ -109,7 +109,7 @@ func patchDeepCopy(patches []Patch) []Patch {
 func (dmp *DiffMatchPatch) PatchMake(text1, text2 string) []Patch {
 	diffs := dmp.DiffMain(text1, text2, true)
 	if len(diffs) > 2 {
-		diffs = dmp.DiffCleanupSemantic(diffs)
+		diffs = CleanupSemantic(diffs)
 		diffs = dmp.DiffCleanupEfficiency(diffs)
 	}
 	return dmp.PatchMakeFromTextAndDiffs(text1, diffs)
@@ -117,7 +117,7 @@ func (dmp *DiffMatchPatch) PatchMake(text1, text2 string) []Patch {
 
 // PatchMakeFromDiffs computes patches from a diff list, deriving text1 from the diffs.
 func (dmp *DiffMatchPatch) PatchMakeFromDiffs(diffs []Diff) []Patch {
-	return dmp.PatchMakeFromTextAndDiffs(dmp.DiffText1(diffs), diffs)
+	return dmp.PatchMakeFromTextAndDiffs(Source(diffs), diffs)
 }
 
 // PatchMakeFromTextAndDiffs computes patches from text1 and a diff list.
@@ -286,12 +286,12 @@ func (dmp *DiffMatchPatch) PatchSplitMax(patches []Patch) []Patch {
 				}
 			}
 
-			precontext = []rune(dmp.DiffText2(patch.Diffs))
+			precontext = []rune(Dest(patch.Diffs))
 			if len(precontext) > dmp.PatchMargin {
 				precontext = precontext[len(precontext)-dmp.PatchMargin:]
 			}
 
-			postcontext := []rune(dmp.DiffText1(bigpatch.Diffs))
+			postcontext := []rune(Source(bigpatch.Diffs))
 			if len(postcontext) > dmp.PatchMargin {
 				postcontext = postcontext[:dmp.PatchMargin]
 			}
@@ -332,7 +332,7 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 
 	for _, aPatch := range patches {
 		expectedLoc := aPatch.Start2 + delta
-		text1 := dmp.DiffText1(aPatch.Diffs)
+		text1 := Source(aPatch.Diffs)
 		r1 := []rune(text1)
 		text1Len := len(r1)
 		var startLoc, endLoc int
@@ -369,24 +369,24 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 				text2 = string(rText[startLoc:end])
 			}
 			if text1 == text2 {
-				rT2 := []rune(dmp.DiffText2(aPatch.Diffs))
+				rT2 := []rune(Dest(aPatch.Diffs))
 				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+text1Len:])
 			} else {
 				diffs := dmp.DiffMain(text1, text2, false)
 				if text1Len > dmp.MatchMaxBits &&
-					float64(dmp.DiffLevenshtein(diffs))/float64(text1Len) > float64(dmp.PatchDeleteThreshold) {
+					float64(Levenshtein(diffs))/float64(text1Len) > float64(dmp.PatchDeleteThreshold) {
 					results[x] = false
 				} else {
-					diffs = dmp.DiffCleanupSemanticLossless(diffs)
+					diffs = CleanupSemanticLossless(diffs)
 					index1 := 0
 					for _, aDiff := range aPatch.Diffs {
 						if aDiff.Type != Equal {
-							index2 := dmp.DiffXIndex(diffs, index1)
+							index2 := TranslateIndex(diffs, index1)
 							rText = []rune(text)
 							if aDiff.Type == Insert {
 								text = string(rText[:startLoc+index2]) + string(aDiff.Text) + string(rText[startLoc+index2:])
 							} else if aDiff.Type == Delete {
-								end := dmp.DiffXIndex(diffs, index1+len(aDiff.Text))
+								end := TranslateIndex(diffs, index1+len(aDiff.Text))
 								text = string(rText[:startLoc+index2]) + string(rText[startLoc+end:])
 							}
 						}
@@ -407,7 +407,7 @@ func (dmp *DiffMatchPatch) PatchApply(patches []Patch, text string) (string, []b
 }
 
 // PatchToText serializes a list of patches to a string.
-func (dmp *DiffMatchPatch) PatchToText(patches []Patch) string {
+func PatchToText(patches []Patch) string {
 	var buf strings.Builder
 	for _, p := range patches {
 		buf.WriteString(p.String())
@@ -418,7 +418,7 @@ func (dmp *DiffMatchPatch) PatchToText(patches []Patch) string {
 var patchHeaderRe = regexp.MustCompile(`^@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@$`)
 
 // PatchFromText parses a textual representation of patches.
-func (dmp *DiffMatchPatch) PatchFromText(textline string) ([]Patch, error) {
+func PatchFromText(textline string) ([]Patch, error) {
 	var patches []Patch
 	if textline == "" {
 		return patches, nil
@@ -485,3 +485,4 @@ func (dmp *DiffMatchPatch) PatchFromText(textline string) ([]Patch, error) {
 	}
 	return patches, nil
 }
+

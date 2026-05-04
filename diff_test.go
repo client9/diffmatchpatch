@@ -45,7 +45,6 @@ func diffsEqual(a, b []Diff) bool {
 }
 
 func TestDiffCommonPrefix(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name         string
 		text1, text2 string
@@ -57,7 +56,7 @@ func TestDiffCommonPrefix(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := dmp.DiffCommonPrefix(c.text1, c.text2); got != c.want {
+			if got := CommonPrefix(c.text1, c.text2); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -65,7 +64,6 @@ func TestDiffCommonPrefix(t *testing.T) {
 }
 
 func TestDiffCommonSuffix(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name         string
 		text1, text2 string
@@ -77,7 +75,7 @@ func TestDiffCommonSuffix(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := dmp.DiffCommonSuffix(c.text1, c.text2); got != c.want {
+			if got := CommonSuffix(c.text1, c.text2); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -85,7 +83,6 @@ func TestDiffCommonSuffix(t *testing.T) {
 }
 
 func TestDiffCommonOverlap(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name         string
 		text1, text2 string
@@ -99,7 +96,7 @@ func TestDiffCommonOverlap(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := dmp.diffCommonOverlap([]rune(c.text1), []rune(c.text2)); got != c.want {
+			if got := diffCommonOverlap([]rune(c.text1), []rune(c.text2)); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -258,7 +255,6 @@ func TestDiffRunesToLines(t *testing.T) {
 }
 
 func TestDiffCleanupMerge(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name  string
 		input []Diff
@@ -307,7 +303,7 @@ func TestDiffCleanupMerge(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := dmp.DiffCleanupMerge(c.input)
+			got := CleanupMerge(c.input)
 			if !diffsEqual(got, c.want) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -316,7 +312,6 @@ func TestDiffCleanupMerge(t *testing.T) {
 }
 
 func TestDiffCleanupSemanticLossless(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name  string
 		input []Diff
@@ -347,7 +342,7 @@ func TestDiffCleanupSemanticLossless(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := dmp.DiffCleanupSemanticLossless(c.input)
+			got := CleanupSemanticLossless(c.input)
 			if !diffsEqual(got, c.want) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -356,7 +351,6 @@ func TestDiffCleanupSemanticLossless(t *testing.T) {
 }
 
 func TestDiffCleanupSemantic(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name  string
 		input []Diff
@@ -396,7 +390,7 @@ func TestDiffCleanupSemantic(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := dmp.DiffCleanupSemantic(c.input)
+			got := CleanupSemantic(c.input)
 			if !diffsEqual(got, c.want) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -441,28 +435,24 @@ func TestDiffCleanupEfficiency(t *testing.T) {
 }
 
 func TestDiffPrettyHtml(t *testing.T) {
-	dmp := New()
 	diffs := makeDiffs(Equal, "a\n", Delete, "<B>b</B>", Insert, "c&d")
 	want := `<span>a&para;<br></span><del style="background:#ffe6e6;">&lt;B&gt;b&lt;/B&gt;</del><ins style="background:#e6ffe6;">c&amp;d</ins>`
-	if got := dmp.DiffPrettyHtml(diffs); got != want {
+	if got := PrettyHtml(diffs); got != want {
 		t.Errorf("want: %s\ngot:  %s", want, got)
 	}
 }
 
 func TestDiffText(t *testing.T) {
-	dmp := New()
 	diffs := makeDiffs(Equal, "jump", Delete, "s", Insert, "ed", Equal, " over ", Delete, "the", Insert, "a", Equal, " lazy")
-	if got := dmp.DiffText1(diffs); got != "jumps over the lazy" {
-		t.Errorf("DiffText1: want %q, got %q", "jumps over the lazy", got)
+	if got := Source(diffs); got != "jumps over the lazy" {
+		t.Errorf("Source: want %q, got %q", "jumps over the lazy", got)
 	}
-	if got := dmp.DiffText2(diffs); got != "jumped over a lazy" {
-		t.Errorf("DiffText2: want %q, got %q", "jumped over a lazy", got)
+	if got := Dest(diffs); got != "jumped over a lazy" {
+		t.Errorf("Dest: want %q, got %q", "jumped over a lazy", got)
 	}
 }
 
 func TestDiffDelta(t *testing.T) {
-	dmp := New()
-
 	cases := []struct {
 		name      string
 		text1     string
@@ -490,16 +480,16 @@ func TestDiffDelta(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			delta := dmp.DiffToDelta(c.diffs)
+			delta := ToDelta(c.diffs)
 			if delta != c.wantDelta {
-				t.Errorf("DiffToDelta: want %q, got %q", c.wantDelta, delta)
+				t.Errorf("ToDelta: want %q, got %q", c.wantDelta, delta)
 			}
-			got, err := dmp.DiffFromDelta(c.text1, delta)
+			got, err := FromDelta(c.text1, delta)
 			if err != nil {
-				t.Fatalf("DiffFromDelta: unexpected error: %v", err)
+				t.Fatalf("FromDelta: unexpected error: %v", err)
 			}
 			if !diffsEqual(got, c.diffs) {
-				t.Errorf("DiffFromDelta: want %v, got %v", c.diffs, got)
+				t.Errorf("FromDelta: want %v, got %v", c.diffs, got)
 			}
 		})
 	}
@@ -511,36 +501,35 @@ func TestDiffDelta(t *testing.T) {
 			a.WriteString(a.String())
 		}
 		diffs := makeDiffs(Insert, a.String())
-		delta := dmp.DiffToDelta(diffs)
+		delta := ToDelta(diffs)
 		if delta != "+"+a.String() {
-			t.Errorf("DiffToDelta: unexpected delta length %d", len(delta))
+			t.Errorf("ToDelta: unexpected delta length %d", len(delta))
 		}
-		got, err := dmp.DiffFromDelta("", delta)
+		got, err := FromDelta("", delta)
 		if err != nil {
-			t.Fatalf("DiffFromDelta: unexpected error: %v", err)
+			t.Fatalf("FromDelta: unexpected error: %v", err)
 		}
 		if !diffsEqual(got, diffs) {
-			t.Errorf("DiffFromDelta: round-trip failed")
+			t.Errorf("FromDelta: round-trip failed")
 		}
 	})
 
 	t.Run("errors", func(t *testing.T) {
 		text1 := "jumps over the lazy"
 		delta := "=4\t-1\t+ed\t=6\t-3\t+a\t=5\t+old dog"
-		if _, err := dmp.DiffFromDelta(text1+"x", delta); err == nil {
+		if _, err := FromDelta(text1+"x", delta); err == nil {
 			t.Error("Too long: expected error")
 		}
-		if _, err := dmp.DiffFromDelta(text1[1:], delta); err == nil {
+		if _, err := FromDelta(text1[1:], delta); err == nil {
 			t.Error("Too short: expected error")
 		}
-		if _, err := dmp.DiffFromDelta("", "+%c3%xy"); err == nil {
+		if _, err := FromDelta("", "+%c3%xy"); err == nil {
 			t.Error("Invalid character: expected error")
 		}
 	})
 }
 
 func TestDiffXIndex(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name  string
 		diffs []Diff
@@ -552,7 +541,7 @@ func TestDiffXIndex(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := dmp.DiffXIndex(c.diffs, c.loc); got != c.want {
+			if got := TranslateIndex(c.diffs, c.loc); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -560,7 +549,6 @@ func TestDiffXIndex(t *testing.T) {
 }
 
 func TestDiffLevenshtein(t *testing.T) {
-	dmp := New()
 	cases := []struct {
 		name  string
 		diffs []Diff
@@ -572,7 +560,7 @@ func TestDiffLevenshtein(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := dmp.DiffLevenshtein(c.diffs); got != c.want {
+			if got := Levenshtein(c.diffs); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
@@ -585,7 +573,7 @@ func TestDiffBisect(t *testing.T) {
 
 	t.Run("Normal", func(t *testing.T) {
 		want := makeDiffs(Delete, "c", Insert, "m", Equal, "a", Delete, "t", Insert, "p")
-		got := dmp.DiffBisect(a, b, time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC))
+		got := dmp.diffBisect([]rune(a), []rune(b), time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC))
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -593,7 +581,7 @@ func TestDiffBisect(t *testing.T) {
 
 	t.Run("Timeout", func(t *testing.T) {
 		want := makeDiffs(Delete, "cat", Insert, "map")
-		got := dmp.DiffBisect(a, b, time.Unix(0, 1))
+		got := dmp.diffBisect([]rune(a), []rune(b), time.Unix(0, 1))
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
