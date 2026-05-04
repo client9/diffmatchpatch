@@ -30,6 +30,29 @@ type Patcher struct {
 	Matcher Matcher
 }
 
+// runesCountAtLeast2 reports whether pattern appears at least twice in text.
+func runesCountAtLeast2(text, pattern []rune) bool {
+	first := runesIndex(text, pattern)
+	if first == -1 {
+		return false
+	}
+	return runesIndex(text[first+1:], pattern) != -1
+}
+
+func patchDeepCopy(patches []Patch) []Patch {
+	out := make([]Patch, len(patches))
+	for i, p := range patches {
+		out[i] = Patch{
+			Diffs:   append([]Diff{}, p.Diffs...),
+			Start1:  p.Start1,
+			Start2:  p.Start2,
+			Length1: p.Length1,
+			Length2: p.Length2,
+		}
+	}
+	return out
+}
+
 func (p Patcher) addContext(patch *Patch, text string) {
 	if len(text) == 0 {
 		return
