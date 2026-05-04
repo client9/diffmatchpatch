@@ -7,14 +7,26 @@ import (
 )
 
 // Patcher holds configuration for computing and applying patches.
+// The zero value is valid but conservative: a DeleteThreshold of 0 rejects any
+// imperfect match, and a Margin of 0 includes no context around changes.
+// Typical values: DeleteThreshold 0.5, Margin 4, EditCost 4,
+// Matcher{Threshold: 0.5, Distance: 1000, MaxBits: 32}.
 type Patcher struct {
-	// DeleteThreshold is the max ratio of deleted characters before a patch is rejected (0=strict, 1=loose).
+	// DeleteThreshold is the maximum acceptable edit-distance ratio between the
+	// expected and matched text when applying a patch fuzzily. Patches whose
+	// ratio exceeds this value are rejected. 0 requires an exact match; 0.5
+	// tolerates up to half the source text being different.
 	DeleteThreshold float32
-	// Margin is the number of context characters included around each change.
+	// Margin is the number of context runes included around each change in a
+	// patch, and the minimum buffer size used when splitting oversized patches.
+	// A value of 4 is typical.
 	Margin int
-	// EditCost is the threshold used by CleanupEfficiency when cleaning diffs before patching.
+	// EditCost is passed to CleanupEfficiency in Make to convert short equalities
+	// into insert/delete pairs before building patches. A value of 4 is typical.
+	// It is not used by MakeFromTextAndDiffs or MakeFromDiffs.
 	EditCost int
-	// Matcher is the fuzzy-match configuration used during patch application.
+	// Matcher is the fuzzy-match configuration used to locate patch positions
+	// during Apply.
 	Matcher Matcher
 }
 
@@ -56,7 +68,9 @@ func (p Patcher) addContext(patch *Patch, text string) {
 	patch.Length2 += prefixLen + suffixLen
 }
 
-// MakeFromTextAndDiffs computes patches from text1 and a diff list.
+// MakeFromTextAndDiffs computes patches that transform text1 into text2, where
+// diffs describes that transformation. text1 must be consistent with the Delete
+// and Equal operations in diffs. Returns nil if diffs is empty.
 func (p Patcher) MakeFromTextAndDiffs(text1 string, diffs []Diff) []Patch {
 	var patches []Patch
 	if len(diffs) == 0 {
@@ -115,13 +129,16 @@ func (p Patcher) MakeFromTextAndDiffs(text1 string, diffs []Diff) []Patch {
 	return patches
 }
 
-// MakeFromDiffs computes patches from a diff list, deriving text1 from the diffs.
+// MakeFromDiffs computes patches from diffs alone, reconstructing text1 from
+// the Delete and Equal segments. Prefer MakeFromTextAndDiffs when text1 is
+// already available.
 func (p Patcher) MakeFromDiffs(diffs []Diff) []Patch {
 	return p.MakeFromTextAndDiffs(Source(diffs), diffs)
 }
 
-// Make computes patches to turn text1 into text2.
-// Use context.WithTimeout to bound the diff computation time.
+// Make computes patches to transform text1 into text2. It diffs the two texts,
+// applies CleanupSemantic and CleanupEfficiency (using EditCost), then builds
+// the patch list. Use context.WithTimeout to limit the diff computation time.
 func (p Patcher) Make(ctx context.Context, text1, text2 string) []Patch {
 	diffs := diffMainRunes(ctx, []rune(text1), []rune(text2), true)
 	if len(diffs) > 2 {
@@ -263,9 +280,13 @@ func (p Patcher) splitMax(patches []Patch) []Patch {
 	return patches
 }
 
-// Apply applies patches to text. Returns the patched text and a boolean slice
-// indicating which patches were successfully applied.
-// Use context.WithTimeout to bound the diff computation time for imperfect matches.
+// Apply applies patches to text and returns the patched text along with a
+// boolean result per patch indicating whether it was applied successfully.
+// Patches that span more than Matcher.MaxBits runes are split internally, so
+// the results slice may be longer than the input patches slice. A patch is
+// rejected if its location cannot be found within Matcher.Threshold or if the
+// fuzzy edit-distance ratio exceeds DeleteThreshold.
+// Use context.WithTimeout to limit time spent on fuzzy re-diffing.
 func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (string, []bool) {
 	if len(patches) == 0 {
 		return text, []bool{}
