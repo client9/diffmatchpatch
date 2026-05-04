@@ -136,7 +136,7 @@ func TestDiffHalfMatch(t *testing.T) {
 			if c.hasDeadline {
 				ctx, _ = context.WithTimeout(context.Background(), time.Hour)
 			}
-			got := diffHalfMatchFree(ctx, []rune(c.text1), []rune(c.text2))
+			got := diffHalfMatch(ctx, []rune(c.text1), []rune(c.text2))
 			if !slices.EqualFunc(got, c.want, slices.Equal) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -212,7 +212,7 @@ func TestDiffRunesToLines(t *testing.T) {
 			{Insert, []rune{2, 1, 2}},
 		}
 		want := []Diff{{Equal, []rune("alpha\nbeta\nalpha\n")}, {Insert, []rune("beta\nalpha\nbeta\n")}}
-		got := diffRunesToLinesFree(diffs, lineArray)
+		got := diffRunesToLines(diffs, lineArray)
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -232,7 +232,7 @@ func TestDiffRunesToLines(t *testing.T) {
 		}
 		diffs := []Diff{{Delete, runeList}}
 		want := []Diff{{Delete, []rune(lineList.String())}}
-		got := diffRunesToLinesFree(diffs, lineArray)
+		got := diffRunesToLines(diffs, lineArray)
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -246,7 +246,7 @@ func TestDiffRunesToLines(t *testing.T) {
 		text := bigList.String()
 		result := diffLinesToRunes(text, "")
 		diffs := []Diff{{Insert, result.chars1}}
-		diffs = diffRunesToLinesFree(diffs, result.lineArray)
+		diffs = diffRunesToLines(diffs, result.lineArray)
 		if string(diffs[0].Text) != text {
 			t.Errorf("round-trip failed: got length %d, want %d", len(diffs[0].Text), len([]rune(text)))
 		}
@@ -569,7 +569,7 @@ func TestDiffBisect(t *testing.T) {
 
 	t.Run("Normal", func(t *testing.T) {
 		want := makeDiffs(Delete, "c", Insert, "m", Equal, "a", Delete, "t", Insert, "p")
-		got := diffBisectFree(context.Background(), []rune(a), []rune(b))
+		got := diffBisect(context.Background(), []rune(a), []rune(b))
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -579,7 +579,7 @@ func TestDiffBisect(t *testing.T) {
 		want := makeDiffs(Delete, "cat", Insert, "map")
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		got := diffBisectFree(ctx, []rune(a), []rune(b))
+		got := diffBisect(ctx, []rune(a), []rune(b))
 		if !diffsEqual(got, want) {
 			t.Errorf("want %v, got %v", want, got)
 		}
@@ -619,7 +619,7 @@ func TestDiffMain(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := diffMainRunesFree(context.Background(), []rune(c.text1), []rune(c.text2), c.checklines)
+			got := diffMainRunes(context.Background(), []rune(c.text1), []rune(c.text2), c.checklines)
 			if !diffsEqual(got, c.want) {
 				t.Errorf("want %v, got %v", c.want, got)
 			}
@@ -638,7 +638,7 @@ func TestDiffMain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		start := time.Now()
-		diffMainRunesFree(ctx, []rune(longA.String()), []rune(longB), true)
+		diffMainRunes(ctx, []rune(longA.String()), []rune(longB), true)
 		elapsed := time.Since(start)
 		if elapsed < timeout {
 			t.Errorf("Timeout min: elapsed %v < timeout %v", elapsed, timeout)
@@ -652,7 +652,7 @@ func TestDiffMain(t *testing.T) {
 		ctx := context.Background()
 		a := "1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n"
 		b := "abcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\nabcdefghij\n"
-		if !diffsEqual(diffMainRunesFree(ctx, []rune(a), []rune(b), false), diffMainRunesFree(ctx, []rune(a), []rune(b), true)) {
+		if !diffsEqual(diffMainRunes(ctx, []rune(a), []rune(b), false), diffMainRunes(ctx, []rune(a), []rune(b), true)) {
 			t.Error("line-mode and char-mode results differ")
 		}
 	})
@@ -661,7 +661,7 @@ func TestDiffMain(t *testing.T) {
 		ctx := context.Background()
 		a := "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
 		b := "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij"
-		if !diffsEqual(diffMainRunesFree(ctx, []rune(a), []rune(b), false), diffMainRunesFree(ctx, []rune(a), []rune(b), true)) {
+		if !diffsEqual(diffMainRunes(ctx, []rune(a), []rune(b), false), diffMainRunes(ctx, []rune(a), []rune(b), true)) {
 			t.Error("line-mode and char-mode results differ")
 		}
 	})
@@ -670,7 +670,7 @@ func TestDiffMain(t *testing.T) {
 		ctx := context.Background()
 		a := "1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n1234567890\n"
 		b := "abcdefghij\n1234567890\n1234567890\n1234567890\nabcdefghij\n1234567890\n1234567890\n1234567890\nabcdefghij\n1234567890\n1234567890\n1234567890\nabcdefghij\n"
-		if diffRebuildTexts(diffMainRunesFree(ctx, []rune(a), []rune(b), true)) != diffRebuildTexts(diffMainRunesFree(ctx, []rune(a), []rune(b), false)) {
+		if diffRebuildTexts(diffMainRunes(ctx, []rune(a), []rune(b), true)) != diffRebuildTexts(diffMainRunes(ctx, []rune(a), []rune(b), false)) {
 			t.Error("line-mode and text-mode results diverge")
 		}
 	})

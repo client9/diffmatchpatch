@@ -123,7 +123,7 @@ func (p Patcher) MakeFromDiffs(diffs []Diff) []Patch {
 // Make computes patches to turn text1 into text2.
 // Use context.WithTimeout to bound the diff computation time.
 func (p Patcher) Make(ctx context.Context, text1, text2 string) []Patch {
-	diffs := diffMainRunesFree(ctx, []rune(text1), []rune(text2), true)
+	diffs := diffMainRunes(ctx, []rune(text1), []rune(text2), true)
 	if len(diffs) > 2 {
 		diffs = CleanupSemantic(diffs)
 		diffs = CleanupEfficiency(diffs, p.EditCost)
@@ -322,7 +322,7 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 				rT2 := []rune(Dest(aPatch.Diffs))
 				text = string(rText[:startLoc]) + string(rT2) + string(rText[startLoc+text1Len:])
 			} else {
-				diffs := diffMainRunesFree(ctx, []rune(text1), []rune(text2), false)
+				diffs := diffMainRunes(ctx, []rune(text1), []rune(text2), false)
 				if text1Len > p.Matcher.MaxBits &&
 					float64(Levenshtein(diffs))/float64(text1Len) > float64(p.DeleteThreshold) {
 					results[x] = false

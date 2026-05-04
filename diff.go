@@ -175,9 +175,9 @@ func runesHasSuffix(s, suffix []rune) bool {
 
 // ---- context-based free-function computation pipeline ----
 
-// diffHalfMatchFree skips the half-match optimization when ctx has no deadline
+// diffHalfMatch skips the half-match optimization when ctx has no deadline
 // (same logic as the old DiffTimeout <= 0 guard).
-func diffHalfMatchFree(ctx context.Context, r1, r2 []rune) [][]rune {
+func diffHalfMatch(ctx context.Context, r1, r2 []rune) [][]rune {
 	_, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
 		return nil
@@ -244,7 +244,7 @@ func diffHalfMatchI(long, short []rune, i int) [][]rune {
 	return nil
 }
 
-func diffBisectFree(ctx context.Context, r1, r2 []rune) []Diff {
+func diffBisect(ctx context.Context, r1, r2 []rune) []Diff {
 	len1, len2 := len(r1), len(r2)
 	maxD := (len1 + len2 + 1) / 2
 	vOffset := maxD
@@ -286,8 +286,8 @@ func diffBisectFree(ctx context.Context, r1, r2 []rune) []Diff {
 				k2off := vOffset + delta - k1
 				if k2off >= 0 && k2off < vLen && v2[k2off] != -1 {
 					if x1 >= len1-v2[k2off] {
-						a := diffMainRunesFree(ctx, r1[:x1], r2[:y1], false)
-						return append(a, diffMainRunesFree(ctx, r1[x1:], r2[y1:], false)...)
+						a := diffMainRunes(ctx, r1[:x1], r2[:y1], false)
+						return append(a, diffMainRunes(ctx, r1[x1:], r2[y1:], false)...)
 					}
 				}
 			}
@@ -316,8 +316,8 @@ func diffBisectFree(ctx context.Context, r1, r2 []rune) []Diff {
 					x1 := v1[k1off]
 					y1 := vOffset + x1 - k1off
 					if x1 >= len1-v2[k2off] {
-						a := diffMainRunesFree(ctx, r1[:x1], r2[:y1], false)
-						return append(a, diffMainRunesFree(ctx, r1[x1:], r2[y1:], false)...)
+						a := diffMainRunes(ctx, r1[:x1], r2[:y1], false)
+						return append(a, diffMainRunes(ctx, r1[x1:], r2[y1:], false)...)
 					}
 				}
 			}
@@ -326,7 +326,7 @@ func diffBisectFree(ctx context.Context, r1, r2 []rune) []Diff {
 	return []Diff{{Delete, r1}, {Insert, r2}}
 }
 
-func diffRunesToLinesFree(diffs []Diff, lineArray []string) []Diff {
+func diffRunesToLines(diffs []Diff, lineArray []string) []Diff {
 	out := make([]Diff, len(diffs))
 	for i, d := range diffs {
 		var r []rune
@@ -338,13 +338,13 @@ func diffRunesToLinesFree(diffs []Diff, lineArray []string) []Diff {
 	return out
 }
 
-func diffLineModeFree(ctx context.Context, text1, text2 string) []Diff {
+func diffLineMode(ctx context.Context, text1, text2 string) []Diff {
 	lineArray := []string{""}
 	lineHash := make(map[string]int)
 	chars1 := diffLinesToRunesMunge(text1, &lineArray, lineHash, 40000)
 	chars2 := diffLinesToRunesMunge(text2, &lineArray, lineHash, 65535)
-	diffs := diffMainRunesFree(ctx, chars1, chars2, false)
-	diffs = diffRunesToLinesFree(diffs, lineArray)
+	diffs := diffMainRunes(ctx, chars1, chars2, false)
+	diffs = diffRunesToLines(diffs, lineArray)
 	diffs = CleanupSemantic(diffs)
 	diffs = append(diffs, Diff{Equal, nil})
 	pointer := 0
@@ -361,7 +361,7 @@ func diffLineModeFree(ctx context.Context, text1, text2 string) []Diff {
 		case Equal:
 			if countDel >= 1 && countIns >= 1 {
 				start := pointer - countDel - countIns
-				sub := diffMainRunesFree(ctx, textDel, textIns, false)
+				sub := diffMainRunes(ctx, textDel, textIns, false)
 				tail := make([]Diff, len(diffs[pointer:]))
 				copy(tail, diffs[pointer:])
 				diffs = append(diffs[:start], append(sub, tail...)...)
@@ -375,7 +375,7 @@ func diffLineModeFree(ctx context.Context, text1, text2 string) []Diff {
 	return diffs[:len(diffs)-1]
 }
 
-func diffComputeRunesFree(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
+func diffComputeRunes(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
 	if len(r1) == 0 {
 		return []Diff{{Insert, r2}}
 	}
@@ -404,18 +404,18 @@ func diffComputeRunesFree(ctx context.Context, r1, r2 []rune, checklines bool) [
 	if len(short) == 1 {
 		return []Diff{{Delete, r1}, {Insert, r2}}
 	}
-	if hm := diffHalfMatchFree(ctx, r1, r2); hm != nil {
-		diffsA := diffMainRunesFree(ctx, hm[0], hm[2], checklines)
-		diffsB := diffMainRunesFree(ctx, hm[1], hm[3], checklines)
+	if hm := diffHalfMatch(ctx, r1, r2); hm != nil {
+		diffsA := diffMainRunes(ctx, hm[0], hm[2], checklines)
+		diffsB := diffMainRunes(ctx, hm[1], hm[3], checklines)
 		return append(append(diffsA, Diff{Equal, hm[4]}), diffsB...)
 	}
 	if checklines && len(r1) > 100 && len(r2) > 100 {
-		return diffLineModeFree(ctx, string(r1), string(r2))
+		return diffLineMode(ctx, string(r1), string(r2))
 	}
-	return diffBisectFree(ctx, r1, r2)
+	return diffBisect(ctx, r1, r2)
 }
 
-func diffMainRunesFree(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
+func diffMainRunes(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
 	if runesEqual(r1, r2) {
 		if len(r1) == 0 {
 			return []Diff{}
@@ -436,7 +436,7 @@ func diffMainRunesFree(ctx context.Context, r1, r2 []rune, checklines bool) []Di
 		r1 = r1[:len(r1)-sfxLen]
 		r2 = r2[:len(r2)-sfxLen]
 	}
-	diffs := diffComputeRunesFree(ctx, r1, r2, checklines)
+	diffs := diffComputeRunes(ctx, r1, r2, checklines)
 	if len(prefix) > 0 {
 		diffs = append([]Diff{{Equal, prefix}}, diffs...)
 	}
@@ -449,20 +449,20 @@ func diffMainRunesFree(ctx context.Context, r1, r2 []rune, checklines bool) []Di
 // DiffRunes computes the differences between two rune slices.
 // Use context.WithTimeout to bound execution time; context.Background() for no limit.
 func DiffRunes(ctx context.Context, r1, r2 []rune) []Diff {
-	return diffMainRunesFree(ctx, r1, r2, false)
+	return diffMainRunes(ctx, r1, r2, false)
 }
 
 // DiffStrings computes character-level differences between two strings.
 // Use context.WithTimeout to bound execution time; context.Background() for no limit.
 func DiffStrings(ctx context.Context, s1, s2 string) []Diff {
-	return diffMainRunesFree(ctx, []rune(s1), []rune(s2), false)
+	return diffMainRunes(ctx, []rune(s1), []rune(s2), false)
 }
 
 // DiffLines computes line-granularity differences between two strings, then
 // re-diffs each changed block at character level.
 // Use context.WithTimeout to bound execution time; context.Background() for no limit.
 func DiffLines(ctx context.Context, s1, s2 string) []Diff {
-	return diffLineModeFree(ctx, s1, s2)
+	return diffLineMode(ctx, s1, s2)
 }
 
 // ---- end context-based pipeline ----
