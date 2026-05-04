@@ -8,6 +8,9 @@ help:
 build: ## build module
 	go build ./...
 
+fuzz:
+	go test ./cmd/diff/ -fuzz=FuzzUnifiedParity -fuzztime=5m
+
 test: ## run all unit tests
 	go test ./...
 
