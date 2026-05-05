@@ -1,6 +1,8 @@
 package diffmatchpatch
 
-func diffCommonPrefixRunes(r1, r2 []rune) int {
+// functions that operate on []rune similar to strings, bytes package.
+
+func runesCommonPrefixLen(r1, r2 []rune) int {
 	n := min(len(r1), len(r2))
 	for i := range n {
 		if r1[i] != r2[i] {
@@ -10,7 +12,7 @@ func diffCommonPrefixRunes(r1, r2 []rune) int {
 	return n
 }
 
-func diffCommonSuffixRunes(r1, r2 []rune) int {
+func runesCommonSuffixLen(r1, r2 []rune) int {
 	n1, n2 := len(r1), len(r2)
 	n := min(n1, n2)
 	for i := 1; i <= n; i++ {
@@ -21,9 +23,9 @@ func diffCommonSuffixRunes(r1, r2 []rune) int {
 	return n
 }
 
-// diffCommonOverlap returns the length (runes) of the longest overlap
+// runesCommonOverlapLen returns the length (runes) of the longest overlap
 // between the suffix of r1 and the prefix of r2.
-func diffCommonOverlap(r1, r2 []rune) int {
+func runesCommonOverlapLen(r1, r2 []rune) int {
 	len1, len2 := len(r1), len(r2)
 	if len1 == 0 || len2 == 0 {
 		return 0

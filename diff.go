@@ -86,8 +86,8 @@ func diffHalfMatchI(long, short []rune, i int) [][]rune {
 			break
 		}
 		j += idx
-		prefix := diffCommonPrefixRunes(long[i:], short[j:])
-		suffix := diffCommonSuffixRunes(long[:i], short[:j])
+		prefix := runesCommonPrefixLen(long[i:], short[j:])
+		suffix := runesCommonSuffixLen(long[:i], short[:j])
 		if len(bestCommon) < suffix+prefix {
 			bestCommon = make([]rune, suffix+prefix)
 			copy(bestCommon, short[j-suffix:j])
@@ -284,14 +284,14 @@ func diffMainRunes(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
 		}
 		return []Diff{{Equal, slices.Clone(r1)}}
 	}
-	pfxLen := diffCommonPrefixRunes(r1, r2)
+	pfxLen := runesCommonPrefixLen(r1, r2)
 	var prefix []rune
 	if pfxLen > 0 {
 		prefix = r1[:pfxLen]
 		r1 = r1[pfxLen:]
 		r2 = r2[pfxLen:]
 	}
-	sfxLen := diffCommonSuffixRunes(r1, r2)
+	sfxLen := runesCommonSuffixLen(r1, r2)
 	var suffix []rune
 	if sfxLen > 0 {
 		suffix = r1[len(r1)-sfxLen:]
@@ -366,7 +366,7 @@ func CleanupMerge(diffs []Diff) []Diff {
 		case Equal:
 			if countDel+countIns > 1 {
 				if countDel != 0 && countIns != 0 {
-					pfxLen := diffCommonPrefixRunes(textIns, textDel)
+					pfxLen := runesCommonPrefixLen(textIns, textDel)
 					if pfxLen != 0 {
 						base := pointer - countDel - countIns
 						if base > 0 && diffs[base-1].Type == Equal {
@@ -378,7 +378,7 @@ func CleanupMerge(diffs []Diff) []Diff {
 						textIns = textIns[pfxLen:]
 						textDel = textDel[pfxLen:]
 					}
-					sfxLen := diffCommonSuffixRunes(textIns, textDel)
+					sfxLen := runesCommonSuffixLen(textIns, textDel)
 					if sfxLen != 0 {
 						sfx := textIns[len(textIns)-sfxLen:]
 						diffs[pointer].Text = append(slices.Clone(sfx), diffs[pointer].Text...)
@@ -488,7 +488,7 @@ func CleanupSemanticLossless(diffs []Diff) []Diff {
 			edit := diffs[pointer].Text
 			eq2 := diffs[pointer+1].Text
 
-			commonOff := diffCommonSuffixRunes(eq1, edit)
+			commonOff := runesCommonSuffixLen(eq1, edit)
 			if commonOff > 0 {
 				commonStr := slices.Clone(edit[len(edit)-commonOff:])
 				eq1 = eq1[:len(eq1)-commonOff]
@@ -597,8 +597,8 @@ func CleanupSemantic(diffs []Diff) []Diff {
 		if diffs[pointer-1].Type == Delete && diffs[pointer].Type == Insert {
 			del := diffs[pointer-1].Text
 			ins := diffs[pointer].Text
-			ov1 := diffCommonOverlap(del, ins)
-			ov2 := diffCommonOverlap(ins, del)
+			ov1 := runesCommonOverlapLen(del, ins)
+			ov2 := runesCommonOverlapLen(ins, del)
 			if ov1 >= ov2 {
 				if float64(ov1) >= float64(len(del))/2.0 ||
 					float64(ov1) >= float64(len(ins))/2.0 {

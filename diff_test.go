@@ -11,12 +11,12 @@ import (
 
 // commonPrefix returns the number of runes common to the start of text1 and text2.
 func commonPrefix(text1, text2 string) int {
-	return diffCommonPrefixRunes([]rune(text1), []rune(text2))
+	return runesCommonPrefixLen([]rune(text1), []rune(text2))
 }
 
 // commonSuffix returns the number of runes common to the end of text1 and text2.
 func commonSuffix(text1, text2 string) int {
-	return diffCommonSuffixRunes([]rune(text1), []rune(text2))
+	return runesCommonSuffixLen([]rune(text1), []rune(text2))
 }
 
 func makeDiffs(args ...any) []Diff {
@@ -107,7 +107,7 @@ func TestDiffCommonOverlap(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := diffCommonOverlap([]rune(c.text1), []rune(c.text2)); got != c.want {
+			if got := runesCommonOverlapLen([]rune(c.text1), []rune(c.text2)); got != c.want {
 				t.Errorf("want %d, got %d", c.want, got)
 			}
 		})
