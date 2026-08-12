@@ -259,17 +259,3 @@ func splitLines(s string) []string {
 	}
 	return result
 }
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

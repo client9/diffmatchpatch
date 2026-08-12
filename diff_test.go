@@ -538,15 +538,16 @@ func TestDiffMain(t *testing.T) {
 		timeout := 100 * time.Millisecond
 		var longA strings.Builder
 		longA.WriteString("`Twas brillig, and the slithy toves\nDid gyre and gimble in the wabe:\nAll mimsy were the borogoves,\nAnd the mome raths outgrabe.\n")
-		longB := "I am the very model of a modern major general,\nI've information vegetable, animal, and mineral,\nI know the kings of England, and I quote the fights historical,\nFrom Marathon to Waterloo, in order categorical.\n"
+		var longB strings.Builder
+		longB.WriteString("I am the very model of a modern major general,\nI've information vegetable, animal, and mineral,\nI know the kings of England, and I quote the fights historical,\nFrom Marathon to Waterloo, in order categorical.\n")
 		for range 10 {
 			longA.WriteString(longA.String())
-			longB += longB
+			longB.WriteString(longB.String())
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		start := time.Now()
-		diffMainRunes(ctx, []rune(longA.String()), []rune(longB), true)
+		diffMainRunes(ctx, []rune(longA.String()), []rune(longB.String()), true)
 		elapsed := time.Since(start)
 		if elapsed < timeout {
 			t.Errorf("Timeout min: elapsed %v < timeout %v", elapsed, timeout)
