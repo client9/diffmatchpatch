@@ -31,13 +31,13 @@ lintverify:
 
 fmt: ## reformat source code
 	go mod tidy
-	gofmt -w -s *.go
+	gofmt -w -s .
 
 lint: ## lint and verify repo is already formatted
 	go mod tidy
 	git diff --exit-code -- go.mod go.sum
-	test -z "$$(gofmt -l *.go)"
-	golangci-lint run .
+	test -z "$$(gofmt -l .)"
+	golangci-lint run ./...
 
 clean: ## remove any generated files
 	rm -f *.out 
