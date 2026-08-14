@@ -209,12 +209,9 @@ func diffRunesToLines(diffs []Diff, lineArray []string) []Diff {
 }
 
 func diffLineMode(ctx context.Context, text1, text2 string) []Diff {
-	lineArray := []string{""}
-	lineHash := make(map[string]int)
-	chars1 := diffLinesToRunesMunge(text1, &lineArray, lineHash, 40000)
-	chars2 := diffLinesToRunesMunge(text2, &lineArray, lineHash, 65535)
-	diffs := diffMainRunes(ctx, chars1, chars2, false)
-	diffs = diffRunesToLines(diffs, lineArray)
+	lcr := diffLinesToRunes(text1, text2)
+	diffs := diffMainRunes(ctx, lcr.chars1, lcr.chars2, false)
+	diffs = diffRunesToLines(diffs, lcr.lineArray)
 	diffs = CleanupSemantic(diffs)
 	diffs = append(diffs, Diff{Equal, nil})
 	pointer := 0
