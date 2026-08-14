@@ -79,7 +79,7 @@ func applyMutations(lines []string, ops []byte) []string {
 
 		case opInsert:
 			// Allow inserting at the end (% nL+1).
-			at    := int(b[1]) % (nL + 1)
+			at := int(b[1]) % (nL + 1)
 			count := int(b[2])%maxCount + 1
 			ins := make([]string, count)
 			for j := range ins {
@@ -102,13 +102,13 @@ func applyMutations(lines []string, ops []byte) []string {
 			start := int(b[1]) % nL
 			count := int(b[2])%min(nL-start, maxCount) + 1
 			moved := append([]string(nil), lines[start:start+count]...)
-			rest  := append(lines[:start:start], lines[start+count:]...)
-			dest  := int(b[3]) % (len(rest) + 1)
-			out   := make([]string, 0, len(lines))
-			out    = append(out, rest[:dest]...)
-			out    = append(out, moved...)
-			out    = append(out, rest[dest:]...)
-			lines  = out
+			rest := append(lines[:start:start], lines[start+count:]...)
+			dest := int(b[3]) % (len(rest) + 1)
+			out := make([]string, 0, len(lines))
+			out = append(out, rest[:dest]...)
+			out = append(out, moved...)
+			out = append(out, rest[dest:]...)
+			lines = out
 		}
 	}
 	return lines
