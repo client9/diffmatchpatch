@@ -662,7 +662,7 @@ func CleanupEfficiency(diffs []Diff, editCost int) []Diff {
 			}
 			if len(lastEquality) > 0 &&
 				((preIns && preDel && postIns && postDel) ||
-					(len(lastEquality) < editCost/2 &&
+					(float64(len(lastEquality)) < float64(editCost)/2 &&
 						boolToInt(preIns)+boolToInt(preDel)+boolToInt(postIns)+boolToInt(postDel) == 3)) {
 				idx := equalities[len(equalities)-1]
 				tail := make([]Diff, len(diffs[idx:]))
