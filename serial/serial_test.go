@@ -109,6 +109,44 @@ func TestToDelta(t *testing.T) {
 		if _, err := FromDelta("", "+%c3%xy"); err == nil {
 			t.Error("Invalid character: expected error")
 		}
+		if _, err := FromDelta("", "=-1"); err == nil {
+			t.Error("Negative count: expected error")
+		}
+	})
+
+	// A zero-length Equal/Delete diff produces a bare "=0"/"-0" token. Other
+	// diff-match-patch ports (and this package's own ToDelta) accept these on
+	// round-trip; FromDelta must not reject them as invalid.
+	t.Run("zero-length tokens", func(t *testing.T) {
+		text1 := "hello"
+		diffs := []dmp.Diff{
+			{Type: dmp.Equal, Text: []rune("hello")},
+			{Type: dmp.Equal, Text: []rune{}},
+		}
+		delta := ToDelta(diffs)
+		if delta != "=5\t=0" {
+			t.Errorf("ToDelta: want %q, got %q", "=5\t=0", delta)
+		}
+		got, err := FromDelta(text1, delta)
+		if err != nil {
+			t.Fatalf("FromDelta: unexpected error on self-produced zero-length token: %v", err)
+		}
+		if !diffsEqual(got, diffs) {
+			t.Errorf("FromDelta: want %v, got %v", diffs, got)
+		}
+
+		// A hand-built "-0" token, as another port might emit, must also parse.
+		got, err = FromDelta(text1, "=5\t-0")
+		if err != nil {
+			t.Fatalf("FromDelta: unexpected error on foreign -0 token: %v", err)
+		}
+		want := []dmp.Diff{
+			{Type: dmp.Equal, Text: []rune("hello")},
+			{Type: dmp.Delete, Text: []rune{}},
+		}
+		if !diffsEqual(got, want) {
+			t.Errorf("FromDelta: want %v, got %v", want, got)
+		}
 	})
 }
 

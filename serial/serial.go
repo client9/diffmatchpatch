@@ -114,7 +114,7 @@ func FromDelta(text1, delta string) ([]dmp.Diff, error) {
 			diffs = append(diffs, dmp.Diff{Type: dmp.Insert, Text: []rune(decoded)})
 		case '-', '=':
 			n, err := strconv.Atoi(param)
-			if err != nil || n <= 0 {
+			if err != nil || n < 0 {
 				return nil, fmt.Errorf("invalid number in FromDelta: %s", param)
 			}
 			if pointer+n > len(r1) {
