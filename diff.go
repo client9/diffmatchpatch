@@ -212,7 +212,7 @@ func diffLineMode(ctx context.Context, text1, text2 string) []Diff {
 	lcr := diffLinesToRunes(text1, text2)
 	diffs := diffMainRunes(ctx, lcr.chars1, lcr.chars2, false)
 	diffs = diffRunesToLines(diffs, lcr.lineArray)
-	diffs = CleanupSemantic(diffs)
+	diffs = cleanupSemantic(diffs)
 	diffs = append(diffs, Diff{Equal, nil})
 	pointer := 0
 	countDel, countIns := 0, 0
@@ -310,7 +310,7 @@ func diffMainRunes(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
 	if len(suffix) > 0 {
 		diffs = append(diffs, Diff{Equal, suffix})
 	}
-	return CleanupMerge(diffs)
+	return cleanupMerge(diffs)
 }
 
 // diffLinesToRunes encodes two texts into rune sequences where each rune value
@@ -351,8 +351,28 @@ func diffLinesToRunesMunge(text string, lineArray *[]string, lineHash map[string
 	return chars
 }
 
+// cloneDiffs returns a copy of diffs whose Text slices are private copies,
+// safe for the cleanup passes below to extend in place without touching
+// memory the caller still holds a reference to — the same boundary-clone
+// approach DiffRunes uses (see its comment), applied here to these four
+// exported entry points.
+func cloneDiffs(diffs []Diff) []Diff {
+	out := make([]Diff, len(diffs))
+	for i, d := range diffs {
+		out[i] = Diff{Type: d.Type, Text: slices.Clone(d.Text)}
+	}
+	return out
+}
+
 // CleanupMerge reorders and merges like edit sections.
 func CleanupMerge(diffs []Diff) []Diff {
+	return cleanupMerge(cloneDiffs(diffs))
+}
+
+// cleanupMerge is the implementation behind CleanupMerge. It assumes diffs'
+// Text slices are privately owned (safe to extend in place); CleanupMerge
+// guarantees that via cloneDiffs before calling in.
+func cleanupMerge(diffs []Diff) []Diff {
 	diffs = append(append([]Diff{}, diffs...), Diff{Equal, nil})
 	pointer := 0
 	countDel, countIns := 0, 0
@@ -442,7 +462,7 @@ func CleanupMerge(diffs []Diff) []Diff {
 		pointer++
 	}
 	if changes {
-		return CleanupMerge(diffs)
+		return cleanupMerge(diffs)
 	}
 	return diffs
 }
@@ -485,6 +505,14 @@ func diffCleanupSemanticScore(one, two []rune) int {
 
 // CleanupSemanticLossless shifts edits to align on word/line boundaries.
 func CleanupSemanticLossless(diffs []Diff) []Diff {
+	return cleanupSemanticLossless(cloneDiffs(diffs))
+}
+
+// cleanupSemanticLossless is the implementation behind
+// CleanupSemanticLossless. It assumes diffs' Text slices are privately
+// owned (safe to extend in place); CleanupSemanticLossless guarantees that
+// via cloneDiffs before calling in.
+func cleanupSemanticLossless(diffs []Diff) []Diff {
 	diffs = append([]Diff{}, diffs...)
 	pointer := 1
 	for pointer < len(diffs)-1 {
@@ -547,6 +575,13 @@ func CleanupSemanticLossless(diffs []Diff) []Diff {
 
 // CleanupSemantic reduces diffs by eliminating semantically trivial equalities.
 func CleanupSemantic(diffs []Diff) []Diff {
+	return cleanupSemantic(cloneDiffs(diffs))
+}
+
+// cleanupSemantic is the implementation behind CleanupSemantic. It assumes
+// diffs' Text slices are privately owned (safe to extend in place);
+// CleanupSemantic guarantees that via cloneDiffs before calling in.
+func cleanupSemantic(diffs []Diff) []Diff {
 	diffs = append([]Diff{}, diffs...)
 	changes := false
 	equalities := []int{}
@@ -593,9 +628,9 @@ func CleanupSemantic(diffs []Diff) []Diff {
 	}
 
 	if changes {
-		diffs = CleanupMerge(diffs)
+		diffs = cleanupMerge(diffs)
 	}
-	diffs = CleanupSemanticLossless(diffs)
+	diffs = cleanupSemanticLossless(diffs)
 
 	pointer = 1
 	for pointer < len(diffs) {
@@ -641,6 +676,13 @@ func CleanupSemantic(diffs []Diff) []Diff {
 // equalities shorter than this threshold are converted to insert/delete pairs.
 // A value of 4 is typical.
 func CleanupEfficiency(diffs []Diff, editCost int) []Diff {
+	return cleanupEfficiency(cloneDiffs(diffs), editCost)
+}
+
+// cleanupEfficiency is the implementation behind CleanupEfficiency. It
+// assumes diffs' Text slices are privately owned (safe to extend in place);
+// CleanupEfficiency guarantees that via cloneDiffs before calling in.
+func cleanupEfficiency(diffs []Diff, editCost int) []Diff {
 	diffs = append([]Diff{}, diffs...)
 	changes := false
 	equalities := []int{}
@@ -697,7 +739,7 @@ func CleanupEfficiency(diffs []Diff, editCost int) []Diff {
 	}
 
 	if changes {
-		diffs = CleanupMerge(diffs)
+		diffs = cleanupMerge(diffs)
 	}
 	return diffs
 }
