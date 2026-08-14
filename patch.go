@@ -97,26 +97,31 @@ func (p Patcher) addContext(patch *Patch, text string) {
 	}
 	rText := []rune(text)
 	textLen := len(rText)
-	pattern := rText[patch.Start2 : patch.Start2+patch.Length1]
+	// Clamp against textLen: if diffs are inconsistent with text1 (see the
+	// MakeFromTextAndDiffs doc comment), patch.Start2/Length1 can point past
+	// the end of text, which would otherwise panic on the slice below.
+	start2 := min(max(patch.Start2, 0), textLen)
+	end2 := min(max(start2+patch.Length1, start2), textLen)
+	pattern := rText[start2:end2]
 	padding := 0
 
 	for runesCountAtLeast2(rText, pattern) &&
 		len(pattern) < bitapMaxBits-p.Margin-p.Margin {
 		padding += p.Margin
-		start := max(0, patch.Start2-padding)
-		end := min(textLen, patch.Start2+patch.Length1+padding)
+		start := max(0, start2-padding)
+		end := min(textLen, end2+padding)
 		pattern = rText[start:end]
 	}
 	padding += p.Margin
 
-	prefixStart := max(0, patch.Start2-padding)
-	prefix := rText[prefixStart:patch.Start2]
+	prefixStart := max(0, start2-padding)
+	prefix := rText[prefixStart:start2]
 	if len(prefix) > 0 {
 		patch.Diffs = append([]Diff{{Equal, slices.Clone(prefix)}}, patch.Diffs...)
 	}
 
-	suffixEnd := min(textLen, patch.Start2+patch.Length1+padding)
-	suffix := rText[patch.Start2+patch.Length1 : suffixEnd]
+	suffixEnd := min(textLen, end2+padding)
+	suffix := rText[end2:suffixEnd]
 	if len(suffix) > 0 {
 		patch.Diffs = append(patch.Diffs, Diff{Equal, slices.Clone(suffix)})
 	}
@@ -153,12 +158,18 @@ func (p Patcher) MakeFromTextAndDiffs(text1 string, diffs []Diff) []Patch {
 			patch.Diffs = append(patch.Diffs, d)
 			patch.Length2 += len(d.Text)
 			rPost := []rune(postpatchText)
-			postpatchText = string(rPost[:charCount2]) + string(d.Text) + string(rPost[charCount2:])
+			// charCount2 tracks the caller's claimed offset into postpatchText;
+			// clamp it so an inconsistent diffs/text1 pairing (see doc comment)
+			// degrades gracefully instead of panicking on a bad slice index.
+			at := min(charCount2, len(rPost))
+			postpatchText = string(rPost[:at]) + string(d.Text) + string(rPost[at:])
 		case Delete:
 			patch.Length1 += len(d.Text)
 			patch.Diffs = append(patch.Diffs, d)
 			rPost := []rune(postpatchText)
-			postpatchText = string(rPost[:charCount2]) + string(rPost[charCount2+len(d.Text):])
+			start := min(charCount2, len(rPost))
+			end := min(charCount2+len(d.Text), len(rPost))
+			postpatchText = string(rPost[:start]) + string(rPost[end:])
 		case Equal:
 			dLen := len(d.Text)
 			if dLen <= 2*p.Margin && len(patch.Diffs) != 0 && i != len(diffs)-1 {
@@ -255,6 +266,16 @@ func (p Patcher) addPadding(patches []Patch) ([]Patch, string) {
 
 func (p Patcher) splitMax(patches []Patch) []Patch {
 	patchSize := bitapMaxBits
+	// Clamp the margin used for splitting so patchSize-margin always leaves
+	// room for progress: precontext is capped at margin runes, so a margin
+	// anywhere near patchSize (or larger) could make each new sub-patch start
+	// already at or past the size budget, stalling the loop below forever.
+	// Keeping margin under half of patchSize guarantees each outer iteration
+	// consumes at least one rune from bigpatch.Diffs.
+	margin := p.Margin
+	if maxMargin := patchSize/2 - 1; margin > maxMargin {
+		margin = maxMargin
+	}
 	for x := 0; x < len(patches); x++ {
 		if patches[x].Length1 <= patchSize {
 			continue
@@ -277,7 +298,7 @@ func (p Patcher) splitMax(patches []Patch) []Patch {
 				patch.Diffs = append(patch.Diffs, Diff{Equal, slices.Clone(precontext)})
 			}
 
-			for len(bigpatch.Diffs) != 0 && patch.Length1 < patchSize-p.Margin {
+			for len(bigpatch.Diffs) != 0 && patch.Length1 < patchSize-margin {
 				diffType := bigpatch.Diffs[0].Type
 				diffText := bigpatch.Diffs[0].Text
 				if diffType == Insert {
@@ -294,7 +315,7 @@ func (p Patcher) splitMax(patches []Patch) []Patch {
 					patch.Diffs = append(patch.Diffs, Diff{diffType, diffText})
 					bigpatch.Diffs = bigpatch.Diffs[1:]
 				} else {
-					take := min(len(diffText), patchSize-patch.Length1-p.Margin)
+					take := min(len(diffText), patchSize-patch.Length1-margin)
 					diffText = diffText[:take]
 					patch.Length1 += take
 					start1 += take
@@ -314,13 +335,13 @@ func (p Patcher) splitMax(patches []Patch) []Patch {
 			}
 
 			precontext = []rune(diffText2(patch.Diffs))
-			if len(precontext) > p.Margin {
-				precontext = precontext[len(precontext)-p.Margin:]
+			if len(precontext) > margin {
+				precontext = precontext[len(precontext)-margin:]
 			}
 
 			postcontext := []rune(diffText1(bigpatch.Diffs))
-			if len(postcontext) > p.Margin {
-				postcontext = postcontext[:p.Margin]
+			if len(postcontext) > margin {
+				postcontext = postcontext[:margin]
 			}
 			if len(postcontext) > 0 {
 				patch.Length1 += len(postcontext)
