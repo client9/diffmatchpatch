@@ -102,11 +102,7 @@ result, applied := p.Apply(context.Background(), patches, target)
 ## Utilities
 
 ```go
-diffmatchpatch.Source(diffs)              // reconstruct text1
-diffmatchpatch.Dest(diffs)               // reconstruct text2
-diffmatchpatch.Levenshtein(diffs)        // edit distance in runes
 diffmatchpatch.TranslateIndex(diffs, i)  // map index from text1 to text2
-diffmatchpatch.PrettyHtml(diffs)         // HTML visualization
 ```
 
 ## Serialization
