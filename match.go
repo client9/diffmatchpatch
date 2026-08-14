@@ -1,10 +1,8 @@
 package diffmatchpatch
 
-import "math/bits"
-
 // matchAlphabet computes the alphabet bitmask for Bitap's pattern.
-func matchAlphabet(pattern string) map[rune]int {
-	s := make(map[rune]int)
+func matchAlphabet(pattern string) map[rune]uint64 {
+	s := make(map[rune]uint64)
 	runes := []rune(pattern)
 	for _, c := range runes {
 		s[c] = 0
@@ -23,11 +21,11 @@ type Matcher struct {
 	Distance int
 }
 
-// bitapMaxBits is the maximum pattern length Bitap can handle, determined by
-// the platform's integer word size (bits.UintSize). The JS original used 32
-// because JavaScript bitwise ops are 32-bit; Go uses native int width (64 on
-// modern platforms).
-const bitapMaxBits = bits.UintSize
+// bitapMaxBits is the maximum pattern length Bitap can handle. The bitmasks
+// are carried in explicit uint64s (not the platform-native int), so this is
+// a fixed 64 on every platform — patches built and applied on different
+// architectures (e.g. amd64 and 32-bit/wasm) split and match identically.
+const bitapMaxBits = 64
 
 func (m Matcher) bitapScore(e, x, loc, patLen int) float64 {
 	accuracy := float64(e) / float64(patLen)
@@ -63,11 +61,11 @@ func (m Matcher) bitap(text, pattern string, loc int) int {
 		}
 	}
 
-	matchmask := 1 << (patLen - 1)
+	matchmask := uint64(1) << (patLen - 1)
 	bestLoc = -1
 	binMax := patLen + textLen
 
-	var lastRd []int
+	var lastRd []uint64
 	for d := range patLen {
 		binMin := 0
 		binMid := binMax
@@ -83,10 +81,10 @@ func (m Matcher) bitap(text, pattern string, loc int) int {
 		start := max(1, loc-binMid+1)
 		finish := min(loc+binMid, textLen) + patLen
 
-		rd := make([]int, finish+2)
-		rd[finish+1] = (1 << d) - 1
+		rd := make([]uint64, finish+2)
+		rd[finish+1] = (uint64(1) << d) - 1
 		for j := finish; j >= start; j-- {
-			var charMatch int
+			var charMatch uint64
 			if j-1 < textLen {
 				if v, ok := s[rText[j-1]]; ok {
 					charMatch = v

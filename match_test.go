@@ -8,10 +8,10 @@ func TestMatchAlphabet(t *testing.T) {
 	cases := []struct {
 		name    string
 		pattern string
-		want    map[rune]int
+		want    map[rune]uint64
 	}{
-		{"Unique", "abc", map[rune]int{'a': 4, 'b': 2, 'c': 1}},
-		{"Duplicates", "abcaba", map[rune]int{'a': 37, 'b': 18, 'c': 8}},
+		{"Unique", "abc", map[rune]uint64{'a': 4, 'b': 2, 'c': 1}},
+		{"Duplicates", "abcaba", map[rune]uint64{'a': 37, 'b': 18, 'c': 8}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
