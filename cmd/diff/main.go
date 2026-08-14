@@ -76,33 +76,10 @@ func main() {
 // diffByLine performs a line-level diff, returning one Diff per line.
 // Each Diff.Text holds a single line (including its trailing newline if any).
 func diffByLine(ctx context.Context, text1, text2 string) []dmp.Diff {
-	lines1 := splitLines(text1)
-	lines2 := splitLines(text2)
-
-	// Encode each unique line as a rune for efficient diffing.
-	lineToRune := make(map[string]rune)
-	var runeToLine []string
-	next := rune(1)
-
-	encode := func(lines []string) []rune {
-		out := make([]rune, len(lines))
-		for i, line := range lines {
-			r, ok := lineToRune[line]
-			if !ok {
-				r = next
-				next++
-				lineToRune[line] = r
-				runeToLine = append(runeToLine, line)
-			}
-			out[i] = r
-		}
-		return out
-	}
-
-	r1 := encode(lines1)
-	r2 := encode(lines2)
-
-	rawDiffs := dmp.DiffRunes(ctx, r1, r2)
+	// Reuse the library's own line<->rune encoding (the same one DiffLines
+	// uses internally) rather than reimplementing it here.
+	lcr := dmp.LinesToRunes(text1, text2)
+	rawDiffs := dmp.DiffRunes(ctx, lcr.Text1, lcr.Text2)
 
 	// Expand each multi-line diff into individual per-line diffs.
 	var result []dmp.Diff
@@ -110,7 +87,7 @@ func diffByLine(ctx context.Context, text1, text2 string) []dmp.Diff {
 		for _, r := range d.Text {
 			result = append(result, dmp.Diff{
 				Type: d.Type,
-				Text: []rune(runeToLine[r-1]),
+				Text: []rune(lcr.Lines[r]),
 			})
 		}
 	}

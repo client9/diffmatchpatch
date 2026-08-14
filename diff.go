@@ -209,9 +209,9 @@ func diffRunesToLines(diffs []Diff, lineArray []string) []Diff {
 }
 
 func diffLineMode(ctx context.Context, text1, text2 string) []Diff {
-	lcr := diffLinesToRunes(text1, text2)
-	diffs := diffMainRunes(ctx, lcr.chars1, lcr.chars2, false)
-	diffs = diffRunesToLines(diffs, lcr.lineArray)
+	lcr := LinesToRunes(text1, text2)
+	diffs := diffMainRunes(ctx, lcr.Text1, lcr.Text2, false)
+	diffs = diffRunesToLines(diffs, lcr.Lines)
 	diffs = cleanupSemantic(diffs)
 	diffs = append(diffs, Diff{Equal, nil})
 	pointer := 0
@@ -313,14 +313,21 @@ func diffMainRunes(ctx context.Context, r1, r2 []rune, checklines bool) []Diff {
 	return cleanupMerge(diffs)
 }
 
-// diffLinesToRunes encodes two texts into rune sequences where each rune value
-// is an index into a shared lineArray.
-func diffLinesToRunes(text1, text2 string) linesCharsResult {
+// LinesToRunes encodes two texts into rune sequences where each rune value
+// is an index into the returned Lines table — the encoding DiffLines uses
+// internally to line-diff before re-diffing changed regions at character
+// level. Exposed for callers that want pure line-level diffing instead: feed
+// Text1/Text2 to DiffRunes, then look up each result rune in Lines.
+//
+// Line counts are capped (40000 for text1, 65535 for text2, matching other
+// diff-match-patch ports); text beyond the cap is folded into one final line
+// per text so encoding stays bounded on huge inputs.
+func LinesToRunes(text1, text2 string) LinesToRunesResult {
 	lineArray := []string{""}
 	lineHash := make(map[string]int)
 	chars1 := diffLinesToRunesMunge(text1, &lineArray, lineHash, 40000)
 	chars2 := diffLinesToRunesMunge(text2, &lineArray, lineHash, 65535)
-	return linesCharsResult{chars1: chars1, chars2: chars2, lineArray: lineArray}
+	return LinesToRunesResult{Text1: chars1, Text2: chars2, Lines: lineArray}
 }
 
 func diffLinesToRunesMunge(text string, lineArray *[]string, lineHash map[string]int, maxLines int) []rune {

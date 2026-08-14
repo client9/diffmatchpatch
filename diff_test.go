@@ -157,38 +157,38 @@ func TestDiffHalfMatch(t *testing.T) {
 }
 
 func TestDiffLinesToRunes(t *testing.T) {
-	checkResult := func(t *testing.T, want, got linesCharsResult) {
+	checkResult := func(t *testing.T, want, got LinesToRunesResult) {
 		t.Helper()
-		if !slices.Equal(got.chars1, want.chars1) || !slices.Equal(got.chars2, want.chars2) || !slices.Equal(got.lineArray, want.lineArray) {
+		if !slices.Equal(got.Text1, want.Text1) || !slices.Equal(got.Text2, want.Text2) || !slices.Equal(got.Lines, want.Lines) {
 			t.Errorf("want %v, got %v", want, got)
 		}
 	}
 
 	t.Run("Shared lines", func(t *testing.T) {
-		want := linesCharsResult{
-			chars1:    []rune{1, 2, 1},
-			chars2:    []rune{2, 1, 2},
-			lineArray: []string{"", "alpha\n", "beta\n"},
+		want := LinesToRunesResult{
+			Text1: []rune{1, 2, 1},
+			Text2: []rune{2, 1, 2},
+			Lines: []string{"", "alpha\n", "beta\n"},
 		}
-		checkResult(t, want, diffLinesToRunes("alpha\nbeta\nalpha\n", "beta\nalpha\nbeta\n"))
+		checkResult(t, want, LinesToRunes("alpha\nbeta\nalpha\n", "beta\nalpha\nbeta\n"))
 	})
 
 	t.Run("Empty string and blank lines", func(t *testing.T) {
-		want := linesCharsResult{
-			chars1:    []rune{},
-			chars2:    []rune{1, 2, 3, 3},
-			lineArray: []string{"", "alpha\r\n", "beta\r\n", "\r\n"},
+		want := LinesToRunesResult{
+			Text1: []rune{},
+			Text2: []rune{1, 2, 3, 3},
+			Lines: []string{"", "alpha\r\n", "beta\r\n", "\r\n"},
 		}
-		checkResult(t, want, diffLinesToRunes("", "alpha\r\nbeta\r\n\r\n\r\n"))
+		checkResult(t, want, LinesToRunes("", "alpha\r\nbeta\r\n\r\n\r\n"))
 	})
 
 	t.Run("No linebreaks", func(t *testing.T) {
-		want := linesCharsResult{
-			chars1:    []rune{1},
-			chars2:    []rune{2},
-			lineArray: []string{"", "a", "b"},
+		want := LinesToRunesResult{
+			Text1: []rune{1},
+			Text2: []rune{2},
+			Lines: []string{"", "a", "b"},
 		}
-		checkResult(t, want, diffLinesToRunes("a", "b"))
+		checkResult(t, want, LinesToRunes("a", "b"))
 	})
 
 	t.Run("More than 256", func(t *testing.T) {
@@ -203,8 +203,8 @@ func TestDiffLinesToRunes(t *testing.T) {
 			lineArray[i] = line
 			expectedChars[i-1] = rune(i)
 		}
-		want := linesCharsResult{chars1: expectedChars, chars2: []rune{}, lineArray: lineArray}
-		checkResult(t, want, diffLinesToRunes(lineList.String(), ""))
+		want := LinesToRunesResult{Text1: expectedChars, Text2: []rune{}, Lines: lineArray}
+		checkResult(t, want, LinesToRunes(lineList.String(), ""))
 	})
 }
 
@@ -256,9 +256,9 @@ func TestDiffRunesToLines(t *testing.T) {
 			fmt.Fprintf(&bigList, "%d\n", i)
 		}
 		text := bigList.String()
-		result := diffLinesToRunes(text, "")
-		diffs := []Diff{{Insert, result.chars1}}
-		diffs = diffRunesToLines(diffs, result.lineArray)
+		result := LinesToRunes(text, "")
+		diffs := []Diff{{Insert, result.Text1}}
+		diffs = diffRunesToLines(diffs, result.Lines)
 		if string(diffs[0].Text) != text {
 			t.Errorf("round-trip failed: got length %d, want %d", len(diffs[0].Text), len([]rune(text)))
 		}

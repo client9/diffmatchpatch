@@ -30,10 +30,12 @@ type Patch struct {
 	Length2 int // length of the affected region in text2
 }
 
-// linesCharsResult holds the output of diffLinesToRunes.
-// Each element of chars1/chars2 is a rune whose integer value is an index into lineArray.
-type linesCharsResult struct {
-	chars1    []rune
-	chars2    []rune
-	lineArray []string
+// LinesToRunesResult holds the output of [LinesToRunes]: two texts encoded
+// one rune per line, plus the table mapping each rune value back to its
+// line. Diffing Text1/Text2 with DiffRunes and expanding the result through
+// Lines yields a line-granularity diff.
+type LinesToRunesResult struct {
+	Text1 []rune   // text1, encoded as one rune per line
+	Text2 []rune   // text2, encoded as one rune per line
+	Lines []string // Lines[r] is the line text for rune value r
 }
