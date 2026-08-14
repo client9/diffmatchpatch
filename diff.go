@@ -11,7 +11,15 @@ import (
 // DiffRunes computes the differences between two rune slices.
 // Use context.WithTimeout to bound execution time; context.Background() for no limit.
 func DiffRunes(ctx context.Context, r1, r2 []rune) []Diff {
-	return diffMainRunes(ctx, r1, r2, false)
+	// Clone once at the boundary: the algorithm below returns Diff.Text values
+	// that are sub-slices of r1/r2 rather than copies (for performance), and
+	// later cleanup passes append onto them in place. Without this clone, a
+	// caller-owned r1/r2 with spare capacity (e.g. sliced from a larger
+	// buffer) could have that spare capacity silently overwritten. Cloning
+	// here makes the backing arrays private to this call, so every derived
+	// sub-slice is safe to mutate internally. DiffStrings/DiffLines don't need
+	// this: []rune(s) from an immutable string is already a private array.
+	return diffMainRunes(ctx, slices.Clone(r1), slices.Clone(r2), false)
 }
 
 // DiffStrings computes character-level differences between two strings.
