@@ -432,21 +432,27 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 				} else {
 					diffs = CleanupSemanticLossless(diffs)
 					index1 := 0
+					// Apply every edit to the same []rune buffer in place, rather
+					// than reconverting the whole text to []rune and rebuilding a
+					// new string after each edit (O(N) per edit; O(K*N) for K
+					// edits). rText already reflects prior edits in this loop, so
+					// positions here mean exactly what they did when text/rText
+					// were re-derived from each other after every step.
 					for _, aDiff := range aPatch.Diffs {
 						if aDiff.Type != Equal {
 							index2 := TranslateIndex(diffs, index1)
-							rText = []rune(text)
 							if aDiff.Type == Insert {
-								text = string(rText[:startLoc+index2]) + string(aDiff.Text) + string(rText[startLoc+index2:])
+								rText = slices.Insert(rText, startLoc+index2, aDiff.Text...)
 							} else if aDiff.Type == Delete {
 								end := TranslateIndex(diffs, index1+len(aDiff.Text))
-								text = string(rText[:startLoc+index2]) + string(rText[startLoc+end:])
+								rText = slices.Delete(rText, startLoc+index2, startLoc+end)
 							}
 						}
 						if aDiff.Type != Delete {
 							index1 += len(aDiff.Text)
 						}
 					}
+					text = string(rText)
 				}
 			}
 		}
