@@ -105,7 +105,13 @@ func (p Patcher) addContext(patch *Patch, text string) {
 	pattern := rText[start2:end2]
 	padding := 0
 
-	for runesCountAtLeast2(rText, pattern) &&
+	// p.Margin > 0 guards forward progress: padding only grows by p.Margin
+	// each iteration, so a zero (or negative) Margin — Patcher's zero value
+	// is documented as valid — would otherwise leave pattern/start/end
+	// unchanged forever whenever pattern recurs elsewhere in text, hanging
+	// this call. Margin <= 0 means "no context", which skipping straight to
+	// the padding==0 result below already provides.
+	for p.Margin > 0 && runesCountAtLeast2(rText, pattern) &&
 		len(pattern) < bitapMaxBits-p.Margin-p.Margin {
 		padding += p.Margin
 		start := max(0, start2-padding)
@@ -214,8 +220,8 @@ func (p Patcher) MakeFromDiffs(diffs []Diff) []Patch {
 func (p Patcher) Make(ctx context.Context, text1, text2 string) []Patch {
 	diffs := diffMainRunes(ctx, []rune(text1), []rune(text2), true)
 	if len(diffs) > 2 {
-		diffs = CleanupSemantic(diffs)
-		diffs = CleanupEfficiency(diffs, p.EditCost)
+		diffs = cleanupSemantic(diffs)
+		diffs = cleanupEfficiency(diffs, p.EditCost)
 	}
 	return p.MakeFromTextAndDiffs(text1, diffs)
 }
@@ -430,7 +436,7 @@ func (p Patcher) Apply(ctx context.Context, patches []Patch, text string) (strin
 					float64(levenshtein(diffs))/float64(text1Len) > float64(p.DeleteThreshold) {
 					results[x] = false
 				} else {
-					diffs = CleanupSemanticLossless(diffs)
+					diffs = cleanupSemanticLossless(diffs)
 					index1 := 0
 					// Apply every edit to the same []rune buffer in place, rather
 					// than reconverting the whole text to []rune and rebuilding a

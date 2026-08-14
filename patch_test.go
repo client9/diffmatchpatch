@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -180,6 +181,26 @@ func TestPatchAddContext(t *testing.T) {
 				t.Errorf("want: %q\ngot:  %q", c.want, got)
 			}
 		})
+	}
+}
+
+// TestPatcherZeroValueDoesNotHang guards against a regression where
+// addContext's context-widening loop only advanced by p.Margin each
+// iteration. With the zero value of Patcher (Margin: 0, documented as
+// "valid but conservative"), that made zero progress, so it spun forever
+// whenever the changed text recurred elsewhere in the source — even under
+// ctx cancellation, since addContext never checks ctx.
+func TestPatcherZeroValueDoesNotHang(t *testing.T) {
+	done := make(chan []Patch, 1)
+	go func() {
+		var p Patcher // zero value
+		done <- p.Make(context.Background(), "aa", "ba")
+	}()
+	select {
+	case <-done:
+		// returned; no assertion on content needed, just that it returned.
+	case <-time.After(2 * time.Second):
+		t.Fatal("Patcher{}.Make did not return within 2s (addContext hang)")
 	}
 }
 
