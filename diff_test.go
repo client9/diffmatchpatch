@@ -322,6 +322,95 @@ func TestDiffCleanupMerge(t *testing.T) {
 	}
 }
 
+// TestCleanupFuncsDoNotAliasCallerMemory guards against a regression where
+// CleanupMerge/CleanupSemantic/CleanupSemanticLossless/CleanupEfficiency
+// extended a Diff.Text in place via append. If the caller's Text had spare
+// capacity (e.g. it was sliced from a larger buffer the caller still holds
+// a reference to), that in-place append silently corrupted memory outside
+// the diff's logical bounds. DiffRunes clones its inputs at the boundary
+// specifically to avoid this; these four exported entry points must too.
+func TestCleanupFuncsDoNotAliasCallerMemory(t *testing.T) {
+	// buf backs both diffs[0].Text (a sub-slice with spare capacity) and
+	// "watched" (the caller's own reference into the rest of that array).
+	// A correct cleanup call must never touch bytes under watched.
+	newInput := func() (diffs []Diff, watched []rune) {
+		buf := make([]rune, 20)
+		copy(buf, []rune("HELLOXXXXXXXXXXXXXXX"))
+		watched = buf[5:20]
+		diffs = []Diff{
+			{Equal, buf[0:5]},
+			{Equal, []rune("world")},
+		}
+		return diffs, watched
+	}
+	want := "XXXXXXXXXXXXXXX"
+
+	t.Run("CleanupMerge", func(t *testing.T) {
+		diffs, watched := newInput()
+		CleanupMerge(diffs)
+		if got := string(watched); got != want {
+			t.Errorf("caller memory corrupted: want %q, got %q", want, got)
+		}
+	})
+	t.Run("CleanupSemantic", func(t *testing.T) {
+		diffs, watched := newInput()
+		CleanupSemantic(diffs)
+		if got := string(watched); got != want {
+			t.Errorf("caller memory corrupted: want %q, got %q", want, got)
+		}
+	})
+	t.Run("CleanupSemanticLossless", func(t *testing.T) {
+		diffs, watched := newInput()
+		CleanupSemanticLossless(diffs)
+		if got := string(watched); got != want {
+			t.Errorf("caller memory corrupted: want %q, got %q", want, got)
+		}
+	})
+	t.Run("CleanupEfficiency", func(t *testing.T) {
+		diffs, watched := newInput()
+		CleanupEfficiency(diffs, 4)
+		if got := string(watched); got != want {
+			t.Errorf("caller memory corrupted: want %q, got %q", want, got)
+		}
+	})
+}
+
+// TestCleanupSemanticLosslessAliasCorruption is a more targeted variant of
+// TestCleanupFuncsDoNotAliasCallerMemory: it isolates the aliasing hazard
+// inside CleanupSemanticLossless's own boundary-shifting loop (`eq1 =
+// append(eq1, re[0])`), independent of the CleanupMerge call path.
+func TestCleanupSemanticLosslessAliasCorruption(t *testing.T) {
+	// One shared backing array. eq1 is deliberately given spare capacity
+	// (cap > len) that extends into memory the caller is using for
+	// something else ("sentinel"), NOT for the edit/eq2 diffs that follow
+	// it in this call -- i.e. eq1's capacity does not line up with
+	// edit+eq2 the way it would for a naturally-produced diffMainRunes
+	// result. This is a realistic shape for a hand-assembled/sliced Diff
+	// (Diff.Text is a plain exported []rune field), and also approximates
+	// what CleanupMerge's incremental append() calls can produce.
+	backing := []rune("XS999999")
+	eq1 := backing[0:1:2] // "X", len 1, cap 2 -- one rune of spare capacity
+	sentinelBefore := string(backing[1:2])
+
+	edit := []rune("cZ") // independent allocation, starts with 'c' like sentinel
+	eq2 := []rune("cW")  // independent allocation, starts with 'c' too
+
+	diffs := []Diff{
+		{Equal, eq1},
+		{Delete, edit},
+		{Equal, eq2},
+	}
+
+	out := CleanupSemanticLossless(diffs)
+	t.Logf("backing=%q out=%v", string(backing), out)
+
+	sentinelAfter := string(backing[1:2])
+	if sentinelBefore != sentinelAfter {
+		t.Fatalf("CleanupSemanticLossless corrupted unrelated memory sharing eq1's backing array: before=%q after=%q",
+			sentinelBefore, sentinelAfter)
+	}
+}
+
 func TestDiffCleanupSemanticLossless(t *testing.T) {
 	cases := []struct {
 		name  string
